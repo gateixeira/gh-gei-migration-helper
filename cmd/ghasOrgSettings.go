@@ -1,44 +1,57 @@
 /*
-Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-
+Package cmd provides a command-line interface for changing GHAS settings for a given organization.
 */
 package cmd
 
 import (
 	"context"
 	"fmt"
-	"github.com/spf13/cobra"
-	"github.com/google/go-github/v50/github"
-	"golang.org/x/oauth2"
+	"log"
 	"os"
+
+	"github.com/google/go-github/v50/github"
+	"github.com/spf13/cobra"
+	"golang.org/x/oauth2"
 )
 
-// ghasSettingsCmd represents the ghasSettings command
-var ghasSettingsCmd = &cobra.Command{
+const (
+	orgFlagName      = "org"
+	activateFlagName = "activate"
+)
+
+// ghasOrgSettingsCmd represents the ghasOrgSettings command
+var ghasOrgSettingsCmd = &cobra.Command{
 	Use:   "ghasOrgSettings",
 	Short: "Change GHAS settings for an organization",
-	Long: `This command changes GHAS settings for a given organization
-	
-	It deactivates Advanced Security and Secret Scanning by default.
-	
-	Pass --activate in order to activate the features.`,
+	Long: `Change GHAS settings for a given organization.
+
+By default, Advanced Security and Secret Scanning are deactivated.
+Pass the --activate flag to activate the features.`,
 	Run: func(cmd *cobra.Command, args []string) {
- 
-		organization, _ := cmd.Flags().GetString("organization")
-		activate, _ := cmd.Flags().GetBool("activate")
-		token, _ := cmd.Flags().GetString("token")
+		organization, err := cmd.Flags().GetString(orgFlagName)
+		if err != nil {
+			log.Fatalf("failed to get organization flag value: %v", err)
+		}
+		activate, err := cmd.Flags().GetBool(activateFlagName)
+		if err != nil {
+			log.Fatalf("failed to get activate flag value: %v", err)
+		}
+		token, err := cmd.Flags().GetString("token")
+		if err != nil {
+			log.Fatalf("failed to get token flag value: %v", err)
+		}
 
 		changeGHASOrgSettings(organization, activate, token)
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(ghasSettingsCmd)
+	rootCmd.AddCommand(ghasOrgSettingsCmd)
 
-	ghasSettingsCmd.Flags().String("organization", "o", "The organization to run the command against")
-	ghasSettingsCmd.MarkFlagRequired("organization")
+	ghasOrgSettingsCmd.Flags().String(orgFlagName, "", "The organization to run the command against")
+	ghasOrgSettingsCmd.MarkFlagRequired(orgFlagName)
 
-	ghasSettingsCmd.Flags().BoolP("activate", "a", false, "Activate GHAS for the organization")
+	ghasOrgSettingsCmd.Flags().BoolP(activateFlagName, "a", false, "Activate GHAS for the organization")
 }
 
 func changeGHASOrgSettings(organization string, activate bool, token string) {
