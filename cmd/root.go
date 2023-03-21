@@ -17,7 +17,7 @@ var rootCmd = &cobra.Command{
 	Use:   "gei-migration-helper",
 	Short: "Helper Application to prepare for GEI Migration",
 	Long: `This CLI application helps to prepare for GEI Migration.
-	It will help to create a list of all the resources that are in use in the current environment.`,
+	It can be used to change the visibility of repositories, change GHAS settings for an organization and more.`,
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
@@ -36,12 +36,11 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
+	rootCmd.PersistentFlags().String("token", "t", "The authentication token to use")
+	rootCmd.MarkFlagRequired("token")
 
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gei-migration-helper.yaml)")
 
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 
