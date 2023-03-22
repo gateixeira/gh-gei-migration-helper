@@ -1,6 +1,5 @@
 /*
 Copyright © 2023 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -11,6 +10,13 @@ import (
 )
 
 
+const (
+	orgFlagName        = "org"
+	repositoryFlagName = "repo"
+	visibilityFlagName = "visibility"
+	activateFlagName   = "activate"
+	tokenFlagName	   = "token"
+)
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -36,8 +42,11 @@ func init() {
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
-	rootCmd.PersistentFlags().String("token", "t", "The authentication token to use")
-	rootCmd.MarkFlagRequired("token")
+	rootCmd.PersistentFlags().String(tokenFlagName, "t", "The authentication token to use")
+	rootCmd.MarkFlagRequired(tokenFlagName)
+
+	rootCmd.PersistentFlags().String(orgFlagName, "", "The organization to run the command against")
+	rootCmd.MarkFlagRequired(orgFlagName)
 
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gei-migration-helper.yaml)")
 

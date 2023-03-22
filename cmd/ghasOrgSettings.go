@@ -14,18 +14,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const (
-	orgFlagName      = "org"
-	activateFlagName = "activate"
-)
-
 // ghasOrgSettingsCmd represents the ghasOrgSettings command
 var ghasOrgSettingsCmd = &cobra.Command{
 	Use:   "ghasOrgSettings",
 	Short: "Change GHAS settings for an organization",
 	Long: `Change GHAS settings for a given organization.
 
-By default, Advanced Security and Secret Scanning are deactivated.
+By default, Advanced Security and Secret Scanning will be deactivated.
 Pass the --activate flag to activate the features.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		organization, err := cmd.Flags().GetString(orgFlagName)
@@ -47,9 +42,6 @@ Pass the --activate flag to activate the features.`,
 
 func init() {
 	rootCmd.AddCommand(ghasOrgSettingsCmd)
-
-	ghasOrgSettingsCmd.Flags().String(orgFlagName, "", "The organization to run the command against")
-	ghasOrgSettingsCmd.MarkFlagRequired(orgFlagName)
 
 	ghasOrgSettingsCmd.Flags().BoolP(activateFlagName, "a", false, "Activate GHAS for the organization")
 }
