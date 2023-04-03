@@ -16,9 +16,12 @@ import (
 
 type BranchProtectionRule struct {
     Nodes []struct {
-        Pattern       string
-        ID            githubv4.ID
+		Id			  string
     }
+	PageInfo struct {
+		EndCursor   githubv4.String
+		HasNextPage bool
+	}
 }
 
 // deleteBranchProtectionsCmd represents the branchProtections command
@@ -66,36 +69,47 @@ func deleteBranchProtections(organization string, repository string, token strin
 
 	var query struct {
 		Repository struct {
-			BranchProtectionRules BranchProtectionRule `graphql:"branchProtectionRules(first: 100)"`
+			BranchProtectionRules BranchProtectionRule `graphql:"branchProtectionRules(first: 100, after: $cursor)"`
 		} `graphql:"repository(owner: $owner, name: $name)"`
 	}
 
 	variables := map[string]interface{}{
 		"owner": githubv4.String(organization),
 		"name": githubv4.String(repository),
+		"cursor": (*githubv4.String)(nil),
 	}
 
-	err := clientv4.Query(ctx, &query, variables)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	results := make([]string, 0)
+	for {
+		err := clientv4.Query(ctx, &query, variables)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+		for _, protection := range query.Repository.BranchProtectionRules.Nodes {
+			results = append(results, protection.Id)
+		}
+
+		variables["cursor"] = query.Repository.BranchProtectionRules.PageInfo.EndCursor
+
+		if !query.Repository.BranchProtectionRules.PageInfo.HasNextPage {
+			break
+		}
 	}
-	
-	branchProtections := query.Repository.BranchProtectionRules.Nodes
 
 	// // delete all branch protections
-	for _, branchProtection := range branchProtections {
-		fmt.Println("Deleting branch protection rule " + branchProtection.Pattern)
+	for _, branchProtection := range results {
+		fmt.Println("Deleting branch protection rule " + branchProtection)
 		var mutate struct {
 			DeleteBranchProtectionRule struct { // Empty struct does not work
 				ClientMutationId githubv4.ID
 			} `graphql:"deleteBranchProtectionRule(input: $input)"`
 		}
 		input := githubv4.DeleteBranchProtectionRuleInput{
-			BranchProtectionRuleID: branchProtection.ID,
+			BranchProtectionRuleID: branchProtection,
 		}
 	
-		ctx := context.WithValue(context.Background(), ctx, branchProtection.ID)
+		ctx := context.WithValue(context.Background(), ctx, branchProtection)
 		err := clientv4.Mutate(ctx, &mutate, input, nil)
 
 		if err != nil {
