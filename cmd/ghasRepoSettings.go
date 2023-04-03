@@ -23,6 +23,7 @@ var ghasRepoSettingsCmd = &cobra.Command{
 By default, Advanced Security and Secret Scanning will be deactivated.
 Pass the --activate flag to activate the features.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Initializing ghasRepoSettings command")
 		organization, err := cmd.Flags().GetString(orgFlagName)
 		if err != nil {
 			log.Fatalf("failed to get organization flag value: %v", err)
@@ -40,6 +41,7 @@ Pass the --activate flag to activate the features.`,
 			log.Fatalf("failed to get token flag value: %v", err)
 		}
 
+		fmt.Println("Changing GHAS settings for repository " + repository + " in organization " + organization)
 		changeGhasRepoSettings(organization, repository, activate, token)
 	},
 }

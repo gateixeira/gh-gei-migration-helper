@@ -16,6 +16,7 @@ const (
 	visibilityFlagName = "visibility"
 	activateFlagName   = "activate"
 	tokenFlagName	   = "token"
+	deleteFlagName	   = "delete"
 )
 
 // rootCmd represents the base command when called without any subcommands

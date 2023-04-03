@@ -20,6 +20,7 @@ var repositoryVisibilityCmd = &cobra.Command{
 	Short: "Change the visibility of a repository",
 	//Long: `Change the visibility of a repository.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Println("Initializing repositoryVisibility command")
 		organization, err := cmd.Flags().GetString(orgFlagName)
 		if err != nil {
 			log.Fatalf("failed to get organization flag value: %v", err)
@@ -37,6 +38,7 @@ var repositoryVisibilityCmd = &cobra.Command{
 			log.Fatalf("failed to get token flag value: %v", err)
 		}
 
+		fmt.Println("Changing visibility for repository " + repository + " to " + visibility)
 		changerepositoryVisibility(organization, repository, visibility, token)
 	},
 }

@@ -21,9 +21,9 @@ type BranchProtectionRule struct {
     }
 }
 
-// branchProtectionsCmd represents the branchProtections command
-var branchProtectionsCmd = &cobra.Command{
-	Use:   "branchProtections",
+// deleteBranchProtectionsCmd represents the branchProtections command
+var deleteBranchProtectionsCmd = &cobra.Command{
+	Use:   "deleteBranchProtections",
 	Short: "Delete branch protections for a given repository",
 	Long: `Delete branch protections for a given repository.
 
@@ -42,15 +42,17 @@ Provide the name of the repository to delete branch protections from.`,
 			log.Fatalf("failed to get token flag value: %v", err)
 		}
 
+		fmt.Println("Deleting branch protections for repository " + repository + " in organization " + organization)
 		deleteBranchProtections(organization, repository, token)
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(branchProtectionsCmd)
+	fmt.Println("Initializing deleteBranchProtections command")
+	rootCmd.AddCommand(deleteBranchProtectionsCmd)
 
-	branchProtectionsCmd.Flags().String(repositoryFlagName, "", "The repository to delete branch protections from.")
-	branchProtectionsCmd.MarkFlagRequired(repositoryFlagName)
+	deleteBranchProtectionsCmd.Flags().String(repositoryFlagName, "", "The repository to delete branch protections from.")
+	deleteBranchProtectionsCmd.MarkFlagRequired(repositoryFlagName)
 }
 
 func deleteBranchProtections(organization string, repository string, token string) {
@@ -59,7 +61,6 @@ func deleteBranchProtections(organization string, repository string, token strin
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
-	//client := github.NewClient(tc)
 
 	clientv4 := githubv4.NewClient(tc)
 
@@ -84,6 +85,7 @@ func deleteBranchProtections(organization string, repository string, token strin
 
 	// // delete all branch protections
 	for _, branchProtection := range branchProtections {
+		fmt.Println("Deleting branch protection rule " + branchProtection.Pattern)
 		var mutate struct {
 			DeleteBranchProtectionRule struct { // Empty struct does not work
 				ClientMutationId githubv4.ID
