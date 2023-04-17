@@ -6,9 +6,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/gofri/go-github-ratelimit/github_ratelimit"
 	"github.com/google/go-github/v50/github"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
@@ -23,19 +23,9 @@ var ghasOrgSettingsCmd = &cobra.Command{
 By default, Advanced Security and Secret Scanning will be deactivated.
 Pass the --activate flag to activate the features.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Initializing ghasOrgSettings command")
-		organization, err := cmd.Flags().GetString(orgFlagName)
-		if err != nil {
-			log.Fatalf("failed to get organization flag value: %v", err)
-		}
-		activate, err := cmd.Flags().GetBool(activateFlagName)
-		if err != nil {
-			log.Fatalf("failed to get activate flag value: %v", err)
-		}
-		token, err := cmd.Flags().GetString("token")
-		if err != nil {
-			log.Fatalf("failed to get token flag value: %v", err)
-		}
+		organization, _ := cmd.Flags().GetString(orgFlagName)
+		activate, _ := cmd.Flags().GetBool(activateFlagName)
+		token, _ := cmd.Flags().GetString("token")
 
 		fmt.Println("Changing GHAS settings for organization " + organization)
 		changeGHASOrgSettings(organization, activate, token)
@@ -44,6 +34,12 @@ Pass the --activate flag to activate the features.`,
 
 func init() {
 	rootCmd.AddCommand(ghasOrgSettingsCmd)
+
+	ghasOrgSettingsCmd.Flags().String(tokenFlagName, "t", "The authentication token to use")
+	ghasOrgSettingsCmd.MarkFlagRequired(tokenFlagName)
+
+	ghasOrgSettingsCmd.Flags().String(orgFlagName, "", "The organization to run the command against")
+	ghasOrgSettingsCmd.MarkFlagRequired(orgFlagName)
 
 	ghasOrgSettingsCmd.Flags().BoolP(activateFlagName, "a", false, "Activate GHAS for the organization")
 }
@@ -60,8 +56,13 @@ func changeGHASOrgSettings(organization string, activate bool, token string) {
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
+	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(tc.Transport)
+
+	if err != nil {
+		panic(err)
+	}
 		
-	client := github.NewClient(tc)
+	client := github.NewClient(rateLimiter)
 
 	//create new organization object
 	newOrgSettings := github.Organization{
@@ -72,12 +73,10 @@ func changeGHASOrgSettings(organization string, activate bool, token string) {
 
 
 	// Update the organization
-	_, _, err := client.Organizations.Edit(ctx, organization, &newOrgSettings)
+	_, _, err = client.Organizations.Edit(ctx, organization, &newOrgSettings)
 
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-
-	os.Exit(0)
 }

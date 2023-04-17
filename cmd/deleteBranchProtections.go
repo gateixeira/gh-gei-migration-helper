@@ -6,9 +6,9 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/gofri/go-github-ratelimit/github_ratelimit"
 	"github.com/shurcooL/githubv4"
 	"github.com/spf13/cobra"
 	"golang.org/x/oauth2"
@@ -32,18 +32,9 @@ var deleteBranchProtectionsCmd = &cobra.Command{
 
 Provide the name of the repository to delete branch protections from.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		organization, err := cmd.Flags().GetString(orgFlagName)
-		if err != nil {
-			log.Fatalf("failed to get organization flag value: %v", err)
-		}
-		repository, err := cmd.Flags().GetString(repositoryFlagName)
-		if err != nil {
-			log.Fatalf("failed to get repository flag value: %v", err)
-		}
-		token, err := cmd.Flags().GetString("token")
-		if err != nil {
-			log.Fatalf("failed to get token flag value: %v", err)
-		}
+		organization, _ := cmd.Flags().GetString(orgFlagName)
+		repository, _ := cmd.Flags().GetString(repositoryFlagName)
+		token, _ := cmd.Flags().GetString("token")
 
 		fmt.Println("Deleting branch protections for repository " + repository + " in organization " + organization)
 		deleteBranchProtections(organization, repository, token)
@@ -51,8 +42,13 @@ Provide the name of the repository to delete branch protections from.`,
 }
 
 func init() {
-	fmt.Println("Initializing deleteBranchProtections command")
 	rootCmd.AddCommand(deleteBranchProtectionsCmd)
+
+	deleteBranchProtectionsCmd.Flags().String(tokenFlagName, "t", "The authentication token to use")
+	deleteBranchProtectionsCmd.MarkFlagRequired(tokenFlagName)
+
+	deleteBranchProtectionsCmd.Flags().String(orgFlagName, "", "The organization to run the command against")
+	deleteBranchProtectionsCmd.MarkFlagRequired(orgFlagName)
 
 	deleteBranchProtectionsCmd.Flags().String(repositoryFlagName, "", "The repository to delete branch protections from.")
 	deleteBranchProtectionsCmd.MarkFlagRequired(repositoryFlagName)
@@ -64,8 +60,13 @@ func deleteBranchProtections(organization string, repository string, token strin
 		&oauth2.Token{AccessToken: token},
 	)
 	tc := oauth2.NewClient(ctx, ts)
+	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(tc.Transport)
 
-	clientv4 := githubv4.NewClient(tc)
+	if err != nil {
+		panic(err)
+	}
+
+	clientv4 := githubv4.NewClient(rateLimiter)
 
 	var query struct {
 		Repository struct {
@@ -117,6 +118,4 @@ func deleteBranchProtections(organization string, repository string, token strin
 			os.Exit(1)
 		}	
 	}
-
-	os.Exit(0)
 }
