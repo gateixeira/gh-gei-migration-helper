@@ -4,14 +4,10 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"log"
 
-	"github.com/gofri/go-github-ratelimit/github_ratelimit"
-	"github.com/google/go-github/v50/github"
+	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
-	"golang.org/x/oauth2"
 )
 
 // migrateOrgCmd represents the migrateOrg command
@@ -40,11 +36,13 @@ var migrateOrgCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
-		fmt.Println("Migrating all repositories from " + sourceOrg + " to " + targetOrg)
+		fmt.Println("[🔄] Deactivating GHAS settings at target organization")
+		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
+		fmt.Println("[✅] Done")
 
-		changeGHASOrgSettings(targetOrg, false, targetToken)
-
-		repositories := getRepositories(sourceOrg, sourceToken)
+		fmt.Println("[🔄] Fetching repositories from source organization")
+		repositories := github.GetRepositories(sourceOrg, sourceToken)
+		fmt.Println("[✅] Done")
 
 		for _, repository := range repositories {
 			if *repository.Name == ".github" {
@@ -52,24 +50,32 @@ var migrateOrgCmd = &cobra.Command{
 			}
 
 			fmt.Print(
-				"\n\n========================================\n\n" +
-					"Migrating repository " + *repository.Name +
-				"\n\n========================================\n\n")
+				"\n\n========================================\nRepository " + *repository.Name + "\n========================================")
 
 			if *repository.Visibility != "public" {
-				changeGhasRepoSettings(sourceOrg, *repository.Name, false, sourceToken)
+				fmt.Println("[🔄] Deactivating GHAS settings at source repository")
+				github.ChangeGhasRepoSettings(sourceOrg, *repository.Name, false, sourceToken)
+				fmt.Println("[✅] Done")
 			}
 
-			migrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+			fmt.Println("[🔄] Migrating repository")
+			github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+			fmt.Println("[✅] Done")
 
-			deleteBranchProtections(targetOrg, *repository.Name, targetToken)
+			fmt.Println("[🔄] Deleting branch protections at target")
+			github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
+			fmt.Println("[✅] Done")
 
 			//check if repository is not private
 			if !*repository.Private {
-				fmt.Println("Source repo is internal. Changing from private at destination.")
-				changeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
+				fmt.Println("[🔄] Repository not private at source. Changing visibility to internal at target")
+				github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
+				fmt.Println("[✅] Done")
 			}
-			changeGhasRepoSettings(targetOrg, *repository.Name, true, targetToken)
+
+			fmt.Println("[🔄] Activating GHAS settings at target")
+			github.ChangeGhasRepoSettings(targetOrg, *repository.Name, true, targetToken)
+			fmt.Println("[✅] Finished. Next...")
 		}
 	},
 }
@@ -88,39 +94,5 @@ func init() {
 
 	migrateOrgCmd.Flags().String(targetTokenFlagName, "", "The token of the target organization.")
 	migrateOrgCmd.MarkFlagRequired(targetTokenFlagName)
-
-}
-
-func getRepositories(sourceOrg string, sourceToken string) []*github.Repository {
-
-	ctx := context.Background()
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: sourceToken},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(tc.Transport)
-
-	if err != nil {
-		panic(err)
-	}
-
-	client := github.NewClient(rateLimiter)
-
-	// list all repositories for the organization
-	opt := &github.RepositoryListByOrgOptions{Type: "all", ListOptions: github.ListOptions{PerPage: 10}}
-	var allRepos []*github.Repository
-	for {
-		repos, resp, err := client.Repositories.ListByOrg(ctx, sourceOrg, opt)
-		if err != nil {
-			log.Fatalf("failed to list repositories: %v", err)
-		}
-		allRepos = append(allRepos, repos...)
-		if resp.NextPage == 0 {
-			break
-		}
-		opt.Page = resp.NextPage
-	}
-
-	return allRepos
 
 }

@@ -5,9 +5,8 @@ package cmd
 
 import (
 	"fmt"
-	"log"
-	"os/exec"
 
+	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
 
@@ -36,18 +35,18 @@ var migrateRepoCmd = &cobra.Command{
 
 		fmt.Println("Migrating repository " + repository + " from " + sourceOrg + " to " + targetOrg)
 
-		changeGHASOrgSettings(targetOrg, false, targetToken)
+		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
 
 		fmt.Print(
 			"\n\n========================================\n\n" +
 				"Migrating repository " + repository +
 			"\n\n========================================\n\n")
 
-		changeGhasRepoSettings(sourceOrg, repository, false, sourceToken)
-		migrateRepo(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-		deleteBranchProtections(targetOrg, repository, targetToken)
-		changeRepositoryVisibility(targetOrg, repository, "internal", targetToken)
-		changeGhasRepoSettings(targetOrg, repository, true, targetToken)
+		github.ChangeGhasRepoSettings(sourceOrg, repository, false, sourceToken)
+		github.MigrateRepo(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		github.DeleteBranchProtections(targetOrg, repository, targetToken)
+		github.ChangeRepositoryVisibility(targetOrg, repository, "internal", targetToken)
+		github.ChangeGhasRepoSettings(targetOrg, repository, true, targetToken)
 	},
 }
 
@@ -69,14 +68,4 @@ func init() {
 	migrateRepoCmd.Flags().String(targetTokenFlagName, "", "The token of the target organization.")
 	migrateRepoCmd.MarkFlagRequired(targetTokenFlagName)
 
-}
-
-func migrateRepo(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	cmd := exec.Command("gh", "gei", "migrate-repo", "--source-repo", repository, "--github-source-org", sourceOrg, "--github-target-org", targetOrg,  "--github-source-pat", sourceToken, "--github-target-pat", targetToken)
-
-	err := cmd.Run()
-
-	if err != nil {
-		log.Fatalf("failed to migrate repository %s: %v", repository, err)
-	}
 }
