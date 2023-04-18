@@ -16,8 +16,24 @@ import (
 
 // migrateOrgCmd represents the migrateOrg command
 var migrateOrgCmd = &cobra.Command{
-	Use:   "migrateOrg",
+	Use:   "migrate-organization",
 	Short: "Migrate all repositories from one organization to another",
+	Long: `This script migrates all repositories from one organization to another.
+
+	The target organization has to exist at destination.
+
+	This script will not migrate the .github repository.
+
+	Migration steps:
+
+	- 1. Deactivate GHAS settings at target organization
+	- 2. Fetch all repositories from source organization
+	- 3. For repositories that are not public, deactivate GHAS settings at source (public repos have this enabled by default)
+	- 4. Migrate repository
+	- 5. Delete branch protections at target
+	- 6. If repository is not private at source, change visibility to internal at target
+	- 7. Activate GHAS settings at target`,
+
 	Run: func(cmd *cobra.Command, args []string) {
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
@@ -31,14 +47,14 @@ var migrateOrgCmd = &cobra.Command{
 		repositories := getRepositories(sourceOrg, sourceToken)
 
 		for _, repository := range repositories {
+			if *repository.Name == ".github" {
+				continue
+			}
+
 			fmt.Print(
 				"\n\n========================================\n\n" +
 					"Migrating repository " + *repository.Name +
 				"\n\n========================================\n\n")
-
-			if *repository.Name == ".github" {
-				continue
-			}
 
 			if *repository.Visibility != "public" {
 				changeGhasRepoSettings(sourceOrg, *repository.Name, false, sourceToken)
@@ -77,8 +93,6 @@ func init() {
 
 func getRepositories(sourceOrg string, sourceToken string) []*github.Repository {
 
-	fmt.Println("Getting repositories from " + sourceOrg)
-
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: sourceToken},
@@ -89,7 +103,7 @@ func getRepositories(sourceOrg string, sourceToken string) []*github.Repository 
 	if err != nil {
 		panic(err)
 	}
-		
+
 	client := github.NewClient(rateLimiter)
 
 	// list all repositories for the organization

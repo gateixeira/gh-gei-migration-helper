@@ -13,8 +13,20 @@ import (
 
 // migrateRepoCmd represents the migrateRepo command
 var migrateRepoCmd = &cobra.Command{
-	Use:   "migrateRepo",
+	Use:   "migrate-repository",
 	Short: "Migrate a repository",
+	Long: `This script migrates a repositories from one organization to another.
+
+	The target organization has to exist at destination.
+
+	Migration steps:
+
+	- 1. Deactivate GHAS settings at target organization
+	- 2. Deactivate GHAS settings at source repository
+	- 3. Migrate repository
+	- 4. Delete branch protections at target
+	- 5. change repository visibility to internal at target
+	- 6. Activate GHAS settings at target`,
 	Run: func(cmd *cobra.Command, args []string) {
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
@@ -60,19 +72,6 @@ func init() {
 }
 
 func migrateRepo(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	
-	fmt.Println("Invoking GEI to migrate repository " + repository + " from " + sourceOrg + " to " + targetOrg)
-
-	// cmd := exec.Command("echo", sourceToken, "|", "gh", "auth", "login", "--with-token")
-
-	// fmt.Println("Executing command: " + cmd.String())
-	// err := cmd.Run()
-	// fmt.Println(cmd.Output())
-
-	// if err != nil {
-	// 	log.Fatalf("failed to migrate repository %s: %v", repository, err)
-	// }
-
 	cmd := exec.Command("gh", "gei", "migrate-repo", "--source-repo", repository, "--github-source-org", sourceOrg, "--github-target-org", targetOrg,  "--github-source-pat", sourceToken, "--github-target-pat", targetToken)
 
 	err := cmd.Run()

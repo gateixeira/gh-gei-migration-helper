@@ -16,7 +16,7 @@ import (
 
 // ghasRepoSettingsCmd represents the ghasRepoSettings command
 var ghasRepoSettingsCmd = &cobra.Command{
-	Use:   "ghasRepoSettings",
+	Use:   "change-ghas-repo-settings",
 	Short: "Change GHAS settings for a repository",
 	Long: `Change GHAS settings for a given repository.
 
@@ -51,10 +51,8 @@ func init() {
 func changeGhasRepoSettings(organization string, repository string, activate bool, token string) {
 	var status string
 	if activate {
-		fmt.Println("Activating GHAS for repository " + repository)
 		status = "enabled"
 	} else {
-		fmt.Println("Deactivating GHAS for repository " + repository)
 		status = "disabled"
 	}
 	ctx := context.Background()

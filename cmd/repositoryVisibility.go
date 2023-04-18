@@ -16,7 +16,7 @@ import (
 
 // repositoryVisibilityCmd represents the repositoryVisibility command
 var repositoryVisibilityCmd = &cobra.Command{
-	Use:   "repositoryVisibility",
+	Use:   "change-repository-visibility",
 	Short: "Change the visibility of a repository",
 	//Long: `Change the visibility of a repository.`,
 	Run: func(cmd *cobra.Command, args []string) {

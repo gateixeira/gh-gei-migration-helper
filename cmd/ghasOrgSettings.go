@@ -16,7 +16,7 @@ import (
 
 // ghasOrgSettingsCmd represents the ghasOrgSettings command
 var ghasOrgSettingsCmd = &cobra.Command{
-	Use:   "ghasOrgSettings",
+	Use:   "change-ghas-org-settings",
 	Short: "Change GHAS settings for an organization",
 	Long: `Change GHAS settings for a given organization.
 
@@ -45,12 +45,6 @@ func init() {
 }
 
 func changeGHASOrgSettings(organization string, activate bool, token string) {
-	if activate {
-		fmt.Println("Activating GHAS for organization " + organization)
-	} else {
-		fmt.Println("Deactivating GHAS for organization " + organization)
-	}
-
 	ctx := context.Background()
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: token},

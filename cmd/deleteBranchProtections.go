@@ -26,7 +26,7 @@ type BranchProtectionRule struct {
 
 // deleteBranchProtectionsCmd represents the branchProtections command
 var deleteBranchProtectionsCmd = &cobra.Command{
-	Use:   "deleteBranchProtections",
+	Use:   "delete-branch-protections",
 	Short: "Delete branch protections for a given repository",
 	Long: `Delete branch protections for a given repository.
 
@@ -100,7 +100,6 @@ func deleteBranchProtections(organization string, repository string, token strin
 
 	// // delete all branch protections
 	for _, branchProtection := range results {
-		fmt.Println("Deleting branch protection rule " + branchProtection)
 		var mutate struct {
 			DeleteBranchProtectionRule struct { // Empty struct does not work
 				ClientMutationId githubv4.ID
