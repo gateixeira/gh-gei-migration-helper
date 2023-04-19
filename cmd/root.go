@@ -12,12 +12,6 @@ import (
 const VERSION = "0.1.0"
 
 const (
-	orgFlagName        = "org"
-	repositoryFlagName = "repo"
-	visibilityFlagName = "visibility"
-	activateFlagName   = "activate"
-	tokenFlagName	   = "token"
-	deleteFlagName	   = "delete"
 	sourceOrgFlagName  = "source-org"
 	targetOrgFlagName  = "target-org"
 	sourceTokenFlagName = "source-token"

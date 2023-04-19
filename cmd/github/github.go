@@ -12,6 +12,7 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type Repository github.Repository
 
 type BranchProtectionRule struct {
     Nodes []struct {
@@ -122,19 +123,30 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) {
 	}
 }
 
-func ChangeGhasRepoSettings(organization string, repository string, activate bool, token string) {
+func ChangeGhasRepoSettings(organization string, repository Repository, activate bool, token string) {
 	checkClients(token)
 
 	var status string
+
 	if activate {
 		status = "enabled"
 	} else {
 		status = "disabled"
 	}
 
-	//create new repository object
-	newRepoSettings := github.Repository{
-		SecurityAndAnalysis: &github.SecurityAndAnalysis{
+	var payload *github.SecurityAndAnalysis
+	//GHAS is always enabled for public repositories and PATCH fails when trying to set to disabled
+	if *repository.Visibility == "public" && !activate {
+		payload = &github.SecurityAndAnalysis{
+			SecretScanning: &github.SecretScanning{
+				Status: &status,
+			},
+			SecretScanningPushProtection: &github.SecretScanningPushProtection{
+				Status: &status,
+			},
+		}
+	} else {
+		payload = &github.SecurityAndAnalysis{
 			AdvancedSecurity: &github.AdvancedSecurity{
 				Status: &status,
 			},
@@ -144,11 +156,18 @@ func ChangeGhasRepoSettings(organization string, repository string, activate boo
 			SecretScanningPushProtection: &github.SecretScanningPushProtection{
 				Status: &status,
 			},
-		},
+		}
+	}
+
+	fmt.Println(payload)
+
+	//create new repository object
+	newRepoSettings := github.Repository{
+		SecurityAndAnalysis: payload,
 	}
 
 	// Update the repository
-	_, _, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
+	_, _, err := clientV3.Repositories.Edit(ctx, organization, *repository.Name, &newRepoSettings)
 
 	if err != nil {
 		fmt.Println(err)
@@ -156,7 +175,19 @@ func ChangeGhasRepoSettings(organization string, repository string, activate boo
 	}
 }
 
-func GetRepositories(org string, token string) []*github.Repository {
+func GetRepository(repoName string, org string, token string) Repository {
+	checkClients(token)
+
+	repo, _, err := clientV3.Repositories.Get(ctx, org, repoName)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
+	return Repository(*repo)
+}
+
+func GetRepositories(org string, token string) []Repository {
 	checkClients(token)
 
 	// list all repositories for the organization
@@ -174,7 +205,12 @@ func GetRepositories(org string, token string) []*github.Repository {
 		opt.Page = resp.NextPage
 	}
 
-	return allRepos
+	var allReposStruct []Repository
+	for _, repo := range allRepos {
+		allReposStruct = append(allReposStruct, Repository(*repo))
+	}
+
+	return allReposStruct
 
 }
 

@@ -4,12 +4,13 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
 
+const (
+	repositoryFlagName = "repo"
+)
 // migrateRepoCmd represents the migrateRepo command
 var migrateRepoCmd = &cobra.Command{
 	Use:   "migrate-repository",
@@ -33,20 +34,9 @@ var migrateRepoCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		fmt.Println("Migrating repository " + repository + " from " + sourceOrg + " to " + targetOrg)
+		repo := github.GetRepository(repository, sourceOrg, sourceToken)
 
-		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
-
-		fmt.Print(
-			"\n\n========================================\n\n" +
-				"Migrating repository " + repository +
-			"\n\n========================================\n\n")
-
-		github.ChangeGhasRepoSettings(sourceOrg, repository, false, sourceToken)
-		github.MigrateRepo(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-		github.DeleteBranchProtections(targetOrg, repository, targetToken)
-		github.ChangeRepositoryVisibility(targetOrg, repository, "internal", targetToken)
-		github.ChangeGhasRepoSettings(targetOrg, repository, true, targetToken)
+		ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken)
 	},
 }
 
