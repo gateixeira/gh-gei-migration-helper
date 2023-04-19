@@ -2,7 +2,7 @@
 
 This tool offers support to configurations around [GitHub's GEI](https://github.com/github/gh-gei) migration tool.
 
-It is a collection of scripts that can be used to help with the migration process.
+It is a collection of scripts that can be used to help with the migration process by wrapping GEI commands and performing pre and post-migration changes
 
 ## Usage
 
@@ -13,48 +13,42 @@ $ ./gei-migration-helper --help
 
 ## Scripts
 
-### `repositoryVisibility`
+### `migrate-organization`
 
-This script can be used to change the visibility of a repository.
-
-#### Usage
-
-```
-$ ./gei-migration-helper repositoryVisibility --repo <repository_name> --token <pat_token> --org <org_name> --visibility <visibility>
-```
-
-The visibility can be either `public`, `private` or `internal`.
-
-### `ghasOrgSettings`
-
-This script can be used to change the GitHub Advanced Security settings of an organization.
+This script can be used to migrate all repositories in an organization
 
 #### Usage
 
 ```
-$ ./gei-migration-helper ghasOrgSettings --token <pat_token> --org <org_name> --activate
+$ ./gei-migration-helper migrate-organization --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
 
-Omit the `activate` flag to deactivate settings
+### `migrate-repository`
 
-### `ghasRepoSettings`
-
-This script can be used to change the GitHub Advanced Security settings of a repository.
+This script can be used to migrate a single repository
 
 #### Usage
 
 ```
-$ ./gei-migration-helper ghasRepoSettings --repo <repository_name> --token <pat_token> --org <org_name> --activate
+$ ./gei-migration-helper migrate-repository --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
 
-Omit the `activate` flag to deactivate settings
+### `migrate-secret-scanning`
 
-### `deleteBranchProtections`
-
-This script can be used to delete branch protections for a repository.
+Wrapper to migrate secret scan results. It migrates for all repositories in an org if no `--repo` is provided.
 
 #### Usage
 
 ```
-$ ./gei-migration-helper deleteBranchProtections --repo <repo_name> --token <pat_token> --org <org_name>
+$ ./gei-migration-helper migrate-secret-scanning --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+```
+
+### `migrate-code-scanning`
+
+Wrapper to migrate code scan alerts. It migrates for all repositories in an org if no `--repo` is provided.
+
+#### Usage
+
+```
+$ ./gei-migration-helper migrate-code-scanning --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
