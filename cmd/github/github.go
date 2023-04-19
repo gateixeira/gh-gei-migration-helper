@@ -291,7 +291,6 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
-				fmt.Println("Code scanning is not enabled for this repository")
 				return false
 			} else {
 				fmt.Println(err)
