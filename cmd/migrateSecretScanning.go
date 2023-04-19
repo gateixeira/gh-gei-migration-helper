@@ -4,6 +4,8 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
@@ -13,19 +15,31 @@ var migrateSecretScanningCmd = &cobra.Command{
 	Use:   "migrate-secret-scanning",
 	Short: "Migrate secret scanning remediations for a repository",
 	Run: func(cmd *cobra.Command, args []string) {
-		sourceOrg, _ := cmd.PersistentFlags().GetString(sourceOrgFlagName)
-		targetOrg, _ := cmd.PersistentFlags().GetString(targetOrgFlagName)
-		sourceToken, _ := cmd.PersistentFlags().GetString(sourceTokenFlagName)
-		targetToken, _ := cmd.PersistentFlags().GetString(targetTokenFlagName)
+		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
+		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
+		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
+		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
-	
-		github.MigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+
+		if repository == "" {
+			fmt.Println("\n[🔄] Fetching repositories from source organization")
+			repositories := github.GetRepositories(sourceOrg, sourceToken)
+			fmt.Println("[✅] Done")
+
+			for _, repository := range repositories {
+				if *repository.Name == ".github" {
+					continue
+				}
+				CheckAndMigrateSecretScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+			}
+		} else {
+			CheckAndMigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(migrateSecretScanningCmd)
 
-	migrateSecretScanningCmd.Flags().String(repositoryFlagName, "", "The repository to migrate.")
-	migrateSecretScanningCmd.MarkFlagRequired(repositoryFlagName)
+	migrateSecretScanningCmd.Flags().String(repositoryFlagName, "", "The repository to migrate. If not provided, Secret Scanning will be migrated for all repositories in the organization.")
 }

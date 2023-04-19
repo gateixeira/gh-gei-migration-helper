@@ -123,38 +123,30 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) {
 	}
 }
 
-func ChangeGhasRepoSettings(organization string, repository Repository, activate bool, token string) {
+func ChangeGhasRepoSettings(organization string, repository Repository, ghas string, secretScanning string, pushProtection string, token string) {
 	checkClients(token)
-
-	var status string
-
-	if activate {
-		status = "enabled"
-	} else {
-		status = "disabled"
-	}
 
 	var payload *github.SecurityAndAnalysis
 	//GHAS is always enabled for public repositories and PATCH fails when trying to set to disabled
 	if *repository.Visibility == "public" {
 		payload = &github.SecurityAndAnalysis{
 			SecretScanning: &github.SecretScanning{
-				Status: &status,
+				Status: &secretScanning,
 			},
 			SecretScanningPushProtection: &github.SecretScanningPushProtection{
-				Status: &status,
+				Status: &pushProtection,
 			},
 		}
 	} else {
 		payload = &github.SecurityAndAnalysis{
 			AdvancedSecurity: &github.AdvancedSecurity{
-				Status: &status,
+				Status: &ghas,
 			},
 			SecretScanning: &github.SecretScanning{
-				Status: &status,
+				Status: &secretScanning,
 			},
 			SecretScanningPushProtection: &github.SecretScanningPushProtection{
-				Status: &status,
+				Status: &pushProtection,
 			},
 		}
 	}
@@ -234,4 +226,79 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 			}
 		}
 	}
+}
+
+func GetAllActiveWorkflowsForRepository(organization string, repository string, token string) []*github.Workflow {
+	checkClients(token)
+
+	// list all workflows for the repository
+	opt := &github.ListOptions{PerPage: 10}
+	var allWorkflows []*github.Workflow
+	for {
+		workflows, resp, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
+		if err != nil {
+			log.Fatalf("failed to list workflows: %v", err)
+		}
+		allWorkflows = append(allWorkflows, workflows.Workflows...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+	}
+
+	var activeWorkflowsStruct []*github.Workflow
+	for _, workflow := range allWorkflows {
+		if *workflow.State == "active" {
+			activeWorkflowsStruct = append(activeWorkflowsStruct, workflow)
+		}
+	}
+
+	return activeWorkflowsStruct
+}
+
+func DisableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) {
+	checkClients(token)
+
+	// disable all workflows
+	for _, workflow := range workflows {
+		_, err := clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
+		if err != nil {
+			log.Fatalf("failed to disable workflow: %v", err)
+		}
+	}
+}
+
+func EnableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) {
+	checkClients(token)
+
+	// enable all workflows
+	for _, workflow := range workflows {
+		_, err := clientV3.Actions.EnableWorkflowByID(ctx, organization, repository, *workflow.ID)
+		if err != nil {
+			log.Fatalf("failed to enable workflow: %v", err)
+		}
+	}
+}
+
+func HasCodeScanningAnalysis(organization string, repository string, token string) bool {
+	checkClients(token)
+
+	//list code scanning alerts
+	opt := &github.AlertListOptions{}
+
+	_, _, err := clientV3.CodeScanning.ListAlertsForRepo(ctx, organization, repository, opt)
+	if err != nil {
+		//test if error code is 404
+		if err, ok := err.(*github.ErrorResponse); ok {
+			if err.Response.StatusCode == 404 {
+				fmt.Println("Code scanning is not enabled for this repository")
+				return false
+			} else {
+				fmt.Println(err)
+				os.Exit(1)
+			}
+		}
+	}
+
+	return true
 }
