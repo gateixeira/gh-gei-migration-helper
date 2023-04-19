@@ -36,7 +36,7 @@ var migrateOrgCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
-		fmt.Println("[🔄] Deactivating GHAS settings at target organization")
+		fmt.Println("\n[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
 		fmt.Println("[✅] Done")
 
@@ -50,7 +50,7 @@ var migrateOrgCmd = &cobra.Command{
 			}
 
 			fmt.Print(
-				"\n\n========================================\nRepository " + *repository.Name + "\n========================================")
+				"\n\n========================================\nRepository " + *repository.Name + "\n========================================\n")
 
 			if *repository.Visibility != "public" {
 				fmt.Println("[🔄] Deactivating GHAS settings at source repository")
@@ -82,17 +82,4 @@ var migrateOrgCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(migrateOrgCmd)
-
-	migrateOrgCmd.Flags().String(sourceOrgFlagName, "", "The source organization.")
-	migrateOrgCmd.MarkFlagRequired(sourceOrgFlagName)
-
-	migrateOrgCmd.Flags().String(targetOrgFlagName, "", "The target organization.")
-	migrateOrgCmd.MarkFlagRequired(targetOrgFlagName)
-
-	migrateOrgCmd.Flags().String(sourceTokenFlagName, "", "The token of the source organization.")
-	migrateOrgCmd.MarkFlagRequired(sourceTokenFlagName)
-
-	migrateOrgCmd.Flags().String(targetTokenFlagName, "", "The token of the target organization.")
-	migrateOrgCmd.MarkFlagRequired(targetTokenFlagName)
-
 }

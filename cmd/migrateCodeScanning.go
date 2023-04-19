@@ -13,11 +13,11 @@ var migrateCodeScanningCmd = &cobra.Command{
 	Use:   "migrate-code-scanning",
 	Short: "Migrate code scanning alerts for a repository",
 	Run: func(cmd *cobra.Command, args []string) {
-		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
-		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
+		sourceOrg, _ := cmd.PersistentFlags().GetString(sourceOrgFlagName)
+		targetOrg, _ := cmd.PersistentFlags().GetString(targetOrgFlagName)
+		sourceToken, _ := cmd.PersistentFlags().GetString(sourceTokenFlagName)
+		targetToken, _ := cmd.PersistentFlags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
-		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
-		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
 		github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 	},
@@ -26,18 +26,6 @@ var migrateCodeScanningCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(migrateCodeScanningCmd)
 
-	migrateCodeScanningCmd.Flags().String(sourceOrgFlagName, "", "The source organization.")
-	migrateCodeScanningCmd.MarkFlagRequired(sourceOrgFlagName)
-
-	migrateCodeScanningCmd.Flags().String(targetOrgFlagName, "", "The target organization.")
-	migrateCodeScanningCmd.MarkFlagRequired(targetOrgFlagName)
-
 	migrateCodeScanningCmd.Flags().String(repositoryFlagName, "", "The repository to migrate.")
 	migrateCodeScanningCmd.MarkFlagRequired(repositoryFlagName)
-
-	migrateCodeScanningCmd.Flags().String(sourceTokenFlagName, "", "The token of the source organization.")
-	migrateCodeScanningCmd.MarkFlagRequired(sourceTokenFlagName)
-
-	migrateCodeScanningCmd.Flags().String(targetTokenFlagName, "", "The token of the target organization.")
-	migrateCodeScanningCmd.MarkFlagRequired(targetTokenFlagName)
 }

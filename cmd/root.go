@@ -49,7 +49,18 @@ func init() {
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
 
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.gei-migration-helper.yaml)")
+	rootCmd.PersistentFlags().String(sourceOrgFlagName, "", "The source organization.")
+	rootCmd.MarkFlagRequired(sourceOrgFlagName)
+
+	rootCmd.PersistentFlags().String(targetOrgFlagName, "", "The target organization.")
+	rootCmd.MarkFlagRequired(targetOrgFlagName)
+
+	rootCmd.PersistentFlags().String(sourceTokenFlagName, "", "The token of the source organization.")
+	rootCmd.MarkFlagRequired(sourceTokenFlagName)
+
+	rootCmd.PersistentFlags().String(targetTokenFlagName, "", "The token of the target organization.")
+	rootCmd.MarkFlagRequired(targetTokenFlagName)
+
 
 }
 

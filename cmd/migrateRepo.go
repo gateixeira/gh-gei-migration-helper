@@ -29,9 +29,9 @@ var migrateRepoCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
-		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
+		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
 		fmt.Println("Migrating repository " + repository + " from " + sourceOrg + " to " + targetOrg)
 
@@ -53,19 +53,7 @@ var migrateRepoCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(migrateRepoCmd)
 
-	migrateRepoCmd.Flags().String(sourceOrgFlagName, "", "The source organization.")
-	migrateRepoCmd.MarkFlagRequired(sourceOrgFlagName)
-
-	migrateRepoCmd.Flags().String(targetOrgFlagName, "", "The target organization.")
-	migrateRepoCmd.MarkFlagRequired(targetOrgFlagName)
-
 	migrateRepoCmd.Flags().String(repositoryFlagName, "", "The repository to migrate.")
 	migrateRepoCmd.MarkFlagRequired(repositoryFlagName)
-
-	migrateRepoCmd.Flags().String(sourceTokenFlagName, "", "The token of the source organization.")
-	migrateRepoCmd.MarkFlagRequired(sourceTokenFlagName)
-
-	migrateRepoCmd.Flags().String(targetTokenFlagName, "", "The token of the target organization.")
-	migrateRepoCmd.MarkFlagRequired(targetTokenFlagName)
 
 }
