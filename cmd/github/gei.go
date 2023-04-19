@@ -17,6 +17,16 @@ func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, 
 	}
 }
 
+func MigrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
+	cmd := exec.Command("gh", "gei", "migrate-secret-alerts", "--source-repo", repository, "--source-org", sourceOrg, "--target-org", targetOrg, "--github-source-pat", sourceToken, "--github-target-pat", targetToken)
+
+	err := cmd.Run()
+
+	if err != nil {
+		log.Fatalf("failed to migrate secret scanning remediations %s: %v", repository, err)
+	}
+}
+
 func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
 	cmd := exec.Command("gh", "gei", "migrate-repo", "--source-repo",
 		repository,"--github-source-org", sourceOrg, "--github-target-org", targetOrg,

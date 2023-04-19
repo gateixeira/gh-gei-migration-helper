@@ -136,7 +136,7 @@ func ChangeGhasRepoSettings(organization string, repository Repository, activate
 
 	var payload *github.SecurityAndAnalysis
 	//GHAS is always enabled for public repositories and PATCH fails when trying to set to disabled
-	if *repository.Visibility == "public" && !activate {
+	if *repository.Visibility == "public" {
 		payload = &github.SecurityAndAnalysis{
 			SecretScanning: &github.SecretScanning{
 				Status: &status,
@@ -158,8 +158,6 @@ func ChangeGhasRepoSettings(organization string, repository Repository, activate
 			},
 		}
 	}
-
-	fmt.Println(payload)
 
 	//create new repository object
 	newRepoSettings := github.Repository{

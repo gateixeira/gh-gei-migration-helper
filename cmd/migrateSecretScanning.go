@@ -4,9 +4,7 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"log"
-	"os/exec"
-
+	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +19,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 		targetToken, _ := cmd.PersistentFlags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 	
-		migrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		github.MigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 	},
 }
 
@@ -30,14 +28,4 @@ func init() {
 
 	migrateSecretScanningCmd.Flags().String(repositoryFlagName, "", "The repository to migrate.")
 	migrateSecretScanningCmd.MarkFlagRequired(repositoryFlagName)
-}
-
-func migrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	cmd := exec.Command("gh", "gei", "migrate-secret-alerts", "--source-repo", repository, "--source-org", sourceOrg, "--target-org", targetOrg, "--github-source-pat", sourceToken, "--github-target-pat", targetToken)
-
-	err := cmd.Run()
-
-	if err != nil {
-		log.Fatalf("failed to migrate secret scanning remediations %s: %v", repository, err)
-	}
 }
