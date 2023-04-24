@@ -1,86 +1,178 @@
 package cmd
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 )
 
-func ProcessRepoMigration(repository github.Repository, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	fmt.Print(
+func ProcessRepoMigration(repository github.Repository, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+	log.Print(
 		"\n\n========================================\nRepository " + *repository.Name + "\n========================================\n")
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
-		fmt.Println("[🔄] Deactivating GHAS settings at source repository")
+		log.Println("[🔄] Deactivating GHAS settings at source repository")
 		github.ChangeGhasRepoSettings(sourceOrg, repository, "disabled", "disabled", "disabled", sourceToken)
-		fmt.Println("[✅] Done")
+		log.Println("[✅] Done")
 	}
 
-	workflows := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
+	workflows, error := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
+
+	if error != nil {
+		return error
+	}
 
 	if len(workflows) > 0 {
-		fmt.Println("[🔄] Disabling workflows at source repository")
-		github.DisableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
-		fmt.Println("[✅] Done")
+		log.Println("[🔄] Disabling workflows at source repository")
+		error := github.DisableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
+		if error != nil {
+			return error
+		}
+		log.Println("[✅] Done")
 	}
 
-	fmt.Println("[🔄] Migrating repository")
-	github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
-	fmt.Println("[✅] Done")
+	log.Println("[🔄] Migrating repository")
+	error = github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+	if error != nil {
+		return error
+	}
 
-	fmt.Println("[🔄] Deleting branch protections at target")
-	github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
-	fmt.Println("[✅] Done")
+	log.Println("[✅] Done")
+
+	log.Println("[🔄] Deleting branch protections at target")
+	error = github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
+	if error != nil {
+		return error
+	}
+	log.Println("[✅] Done")
 
 	//check if repository is not private
 	if !*repository.Private {
-		fmt.Println("[🔄] Repository not private at source. Changing visibility to internal at target")
-		github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
-		fmt.Println("[✅] Done")
+		log.Println("[🔄] Repository not private at source. Changing visibility to internal at target")
+		error = github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
+		if error != nil {
+			return error
+		}
+		log.Println("[✅] Done")
 	}
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
-		fmt.Println("[🔄] Activating GHAS settings at target")
-		github.ChangeGhasRepoSettings(targetOrg, repository,
+		log.Println("[🔄] Activating GHAS settings at target")
+		error = github.ChangeGhasRepoSettings(targetOrg, repository,
 			*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
 			*repository.SecurityAndAnalysis.SecretScanning.Status,
 			*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
-		fmt.Println("[✅] Finished.")
+		if error != nil {
+			return error
+		}
+		log.Println("[✅] Finished.")
 
-		fmt.Println("[🔄] Reactivating GHAS settings at source repository")
-		github.ChangeGhasRepoSettings(sourceOrg, repository,
+		log.Println("[🔄] Reactivating GHAS settings at source repository")
+		error = github.ChangeGhasRepoSettings(sourceOrg, repository,
 			*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
 			*repository.SecurityAndAnalysis.SecretScanning.Status,
 			*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
-		fmt.Println("[✅] Done")
+		if error != nil {
+			return error
+		}
+		log.Println("[✅] Done")
+	}
+
+	log.Println("[🔄] Migrating code scanning alerts")
+	error = CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+	if error != nil {
+		return error
+	}
+	log.Println("[✅] Done")	
+
+	if len(workflows) > 0 {
+		log.Println("[🔄] Enabling workflows at source repository")
+		error = github.EnableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
+		if error != nil {
+			return error
+		}
+		log.Println("[✅] Done")
+	}
+
+	log.Println("[🔄] Archiving source repository")
+	error = github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+	if error != nil {
+		return error
+	}
+	log.Println("[✅] Done")
+
+	return nil
+}
+
+func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+	repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
+
+	if err != nil {
+		return err
+	}
+
+	if *repo.SecurityAndAnalysis.SecretScanning.Status == "enabled" {
+		log.Println("[🔄] Migrating secret scanning alerts for repository", repository)
+		err = github.MigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		
+		if err != nil {
+			return err
+		}
+		
+		log.Println("[✅] Done")
+	} else {
+		log.Println("[🚫] Skipping repository", repository, "because it secret scanning is not enabled")
+	}
+
+	return nil
+}
+
+func CheckAndMigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+	repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
+
+	if err != nil {
+		return err
+	}
+
+	hasCodeScanningAnalysis, err := github.HasCodeScanningAnalysis(*repo.Name, sourceOrg, sourceToken)
+
+	if err != nil {
+		return err
+	}
+
+	if hasCodeScanningAnalysis {
+		log.Println("[🔄] Migrating code scanning alerts for repository", repository)
+		err = github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		
+		if err != nil {
+			return err
+		}
+		
+		log.Println("[✅] Done")
+	} else {
+		log.Println("[🚫] Skipping repository", repository, "because it does not have code scanning analysis")
+	}
+
+	return nil
+}
+
+func ReactivateTargetWorkflows(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+	workflows, err := github.GetAllActiveWorkflowsForRepository(sourceOrg, repository, sourceToken)
+
+	if err != nil {
+		return err
 	}
 
 	if len(workflows) > 0 {
-		fmt.Println("[🔄] Enabling workflows at source repository")
-		github.EnableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
-		fmt.Println("[✅] Done")
+		log.Println("[🔄] Enabling workflows at target repository")
+		err := github.EnableWorkflowsForRepository(targetOrg, repository, workflows, targetToken)
+		
+		if err != nil {
+			return err
+		}
+		
+		log.Println("[✅] Done")
 	}
-}
 
-func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	repo := github.GetRepository(repository, sourceOrg, sourceToken)
-	if *repo.SecurityAndAnalysis.SecretScanning.Status == "enabled" {
-		fmt.Println("[🔄] Migrating secret scanning alerts for repository", repository)
-		github.MigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-		fmt.Println("[✅] Done")
-	} else {
-		fmt.Println("[🚫] Skipping repository", repository, "because it secret scanning is not enabled")
-	}
-}
-
-func CheckAndMigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) {
-	repo := github.GetRepository(repository, sourceOrg, sourceToken)
-
-	if github.HasCodeScanningAnalysis(*repo.Name, sourceOrg, sourceToken) {
-		fmt.Println("[🔄] Migrating code scanning alerts for repository", repository)
-		github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-		fmt.Println("[✅] Done")
-	} else {
-		fmt.Println("[🚫] Skipping repository", repository, "because it does not have code scanning analysis")
-	}
+	return nil
 }

@@ -4,7 +4,8 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"fmt"
+	"log"
+	"os"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
@@ -36,20 +37,29 @@ var migrateOrgCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
-		fmt.Println("\n[🔄] Deactivating GHAS settings at target organization")
+		log.Println("\n[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
-		fmt.Println("[✅] Done")
+		log.Println("[✅] Done")
 
-		fmt.Println("[🔄] Fetching repositories from source organization")
-		repositories := github.GetRepositories(sourceOrg, sourceToken)
-		fmt.Println("[✅] Done")
+		log.Println("[🔄] Fetching repositories from source organization")
+		repositories, err := github.GetRepositories(sourceOrg, sourceToken)
+		if err != nil {
+			log.Println("[❌] Error fetching repositories from source organization")
+			os.Exit(1)
+		}
+
+		log.Println("[✅] Done")
 
 		for _, repository := range repositories {
 			if *repository.Name == ".github" {
 				continue
 			}
 
-			ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+			error := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+			if error != nil {
+				log.Println("[❌] Error migrating repository " + *repository.Name)
+				continue
+			}
 		}
 	},
 }
