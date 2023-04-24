@@ -22,7 +22,13 @@ var activateGhasFeaturesCmd = &cobra.Command{
 
 		if (organization != "") {
 			log.Println("[🔄] Activating GHAS settings for organization: " + organization)
-			github.ChangeGHASOrgSettings(organization, true, token)
+			error := github.ChangeGHASOrgSettings(organization, true, token)
+
+			if error != nil {
+				log.Println("[❌] Error activating GHAS settings for organization: " + organization)
+				os.Exit(1)
+			}
+
 			log.Println("[✅] Done")
 			os.Exit(0)
 		}
@@ -38,7 +44,12 @@ var activateGhasFeaturesCmd = &cobra.Command{
 
 		for _, organization := range organizations {
 			log.Println("[🔄] Activating GHAS settings for organization: " + organization)
-			github.ChangeGHASOrgSettings(organization, true, token)
+			error := github.ChangeGHASOrgSettings(organization, true, token)
+
+			if error != nil {
+				log.Println("[❌] Error activating GHAS settings for organization: " + organization)
+				continue
+			}
 			log.Println("[✅] Done")
 		}
 	},
