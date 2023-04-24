@@ -25,6 +25,17 @@ type BranchProtectionRule struct {
 	}
 }
 
+//type structure for the graphql query GetOrganizationsInEnterprise
+type Organization struct {
+	Nodes []struct {
+		Login string
+	}
+	PageInfo struct {
+		EndCursor   githubv4.String
+		HasNextPage bool
+	}
+}
+
 var (
 	ctx context.Context
 	clientV3 *github.Client
@@ -373,4 +384,39 @@ func ArchiveRepository(organization string, repository string, token string) err
 	}
 
 	return err
+}
+
+func GetOrganizationsInEnterprise(enterprise string, token string) ([]string, error) {
+	checkClients(token)
+
+	var query struct {
+		Enterprise struct {
+			Organizations Organization `graphql:"organizations(first: 100, after: $cursor)"`
+		} `graphql:"enterprise(slug: $enterprise)"`
+	}
+
+	variables := map[string]interface{}{
+		"enterprise": githubv4.String(enterprise),
+		"cursor": (*githubv4.String)(nil),
+	}
+
+	results := make([]string, 0)
+	for {
+		err := clientV4.Query(ctx, &query, variables)
+		if err != nil {
+			log.Println("Error querying organizations: ", err)
+			return nil, err
+		}
+		for _, organization := range query.Enterprise.Organizations.Nodes {
+			results = append(results, organization.Login)
+		}
+
+		variables["cursor"] = query.Enterprise.Organizations.PageInfo.EndCursor
+
+		if !query.Enterprise.Organizations.PageInfo.HasNextPage {
+			break
+		}
+	}
+
+	return results, nil
 }
