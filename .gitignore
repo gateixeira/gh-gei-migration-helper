@@ -1,2 +1,3 @@
 bin/
 *.octoshift*
+.DS_Store
