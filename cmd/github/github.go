@@ -16,9 +16,9 @@ type Repository github.Repository
 const githubDelay = 720 * time.Millisecond
 
 type BranchProtectionRule struct {
-    Nodes []struct {
-		Id			  string
-    }
+	Nodes []struct {
+		Id string
+	}
 	PageInfo struct {
 		EndCursor   githubv4.String
 		HasNextPage bool
@@ -26,9 +26,9 @@ type BranchProtectionRule struct {
 }
 
 var (
-	ctx context.Context
-	clientV3 *github.Client
-	clientV4 *githubv4.Client
+	ctx         context.Context
+	clientV3    *github.Client
+	clientV4    *githubv4.Client
 	accessToken string
 )
 
@@ -71,8 +71,8 @@ func DeleteBranchProtections(organization string, repository string, token strin
 	}
 
 	variables := map[string]interface{}{
-		"owner": githubv4.String(organization),
-		"name": githubv4.String(repository),
+		"owner":  githubv4.String(organization),
+		"name":   githubv4.String(repository),
 		"cursor": (*githubv4.String)(nil),
 	}
 
@@ -104,14 +104,14 @@ func DeleteBranchProtections(organization string, repository string, token strin
 		input := githubv4.DeleteBranchProtectionRuleInput{
 			BranchProtectionRuleID: branchProtection,
 		}
-	
+
 		ctx := context.WithValue(context.Background(), ctx, branchProtection)
 		err := clientV4.Mutate(ctx, &mutate, input, nil)
 
 		if err != nil {
 			log.Println("Error deleting branch protection rule: ", err)
 			return err
-		}	
+		}
 	}
 
 	return nil
@@ -122,9 +122,9 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) err
 
 	//create new organization object
 	newOrgSettings := github.Organization{
-		AdvancedSecurityEnabledForNewRepos: &activate,
+		AdvancedSecurityEnabledForNewRepos:             &activate,
 		SecretScanningPushProtectionEnabledForNewRepos: &activate,
-		SecretScanningEnabledForNewRepos: &activate,
+		SecretScanningEnabledForNewRepos:               &activate,
 	}
 
 	// Update the organization
@@ -296,8 +296,13 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 
 		logTokenRateLimit(response)
 
-		if err != nil {
-			log.Println("failed to disable workflow: ", err)
+		if err, ok := err.(*github.ErrorResponse); ok {
+			log.Println("failed to disable workflow: ", workflow.Name)
+
+			if err.Response.StatusCode == 422 {
+				log.Println("error is 422. Skipping...")
+				return nil
+			}
 			return err
 		}
 	}
@@ -314,8 +319,13 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 
 		logTokenRateLimit(response)
 
-		if err != nil {
-			log.Println("failed to enable workflow: ", err)
+		if err, ok := err.(*github.ErrorResponse); ok {
+			log.Println("failed to enable workflow: ", workflow.Name)
+
+			if err.Response.StatusCode == 422 {
+				log.Println("error is 422. Skipping...")
+				return nil
+			}
 			return err
 		}
 	}
