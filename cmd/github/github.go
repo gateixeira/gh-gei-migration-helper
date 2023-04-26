@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"time"
 
@@ -65,7 +66,7 @@ func checkClients(token string, url string) error {
 		if err != nil {
 			return err
 		}
-		clientV4 = githubv4.NewEnterpriseClient(url, rateLimiter)
+		clientV4 = githubv4.NewEnterpriseClient(url+"/api/graphql", rateLimiter)
 	}
 
 	return nil
@@ -402,6 +403,8 @@ func GetOrganizationsInEnterprise(enterprise string, token string, url string) (
 		"enterprise": githubv4.String(enterprise),
 		"cursor":     (*githubv4.String)(nil),
 	}
+
+	fmt.Println(query)
 
 	results := make([]string, 0)
 	for {
