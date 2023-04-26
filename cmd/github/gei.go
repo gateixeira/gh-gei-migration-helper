@@ -1,14 +1,17 @@
 package github
 
 import (
+	"errors"
 	"log"
+	"math"
 	"os/exec"
+	"time"
 )
 
 func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
 	cmd := exec.Command("gh", "gei", "migrate-code-scanning-alerts", "--source-repo", repository,
-		"--source-org", sourceOrg, "--target-org", targetOrg,"--github-source-pat", sourceToken,
-			"--github-target-pat", targetToken)
+		"--source-org", sourceOrg, "--target-org", targetOrg, "--github-source-pat", sourceToken,
+		"--github-target-pat", targetToken)
 
 	err := cmd.Run()
 
@@ -35,8 +38,8 @@ func MigrateSecretScanning(repository string, sourceOrg string, targetOrg string
 
 func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
 	cmd := exec.Command("gh", "gei", "migrate-repo", "--source-repo",
-		repository,"--github-source-org", sourceOrg, "--github-target-org", targetOrg,
-			"--github-source-pat", sourceToken, "--github-target-pat", targetToken)
+		repository, "--github-source-org", sourceOrg, "--github-target-org", targetOrg,
+		"--github-source-pat", sourceToken, "--github-target-pat", targetToken)
 
 	err := cmd.Run()
 
@@ -45,5 +48,27 @@ func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceTo
 		return err
 	}
 
+	//call exponentialBackoff
+	err = exponentialBackoff(func() (Repository, error) {
+		return GetRepository(repository, targetOrg, targetToken)
+	})
+
+	if err != nil {
+		log.Println("failed to migrate repository: ", err)
+		return err
+	}
+
 	return nil
+}
+
+func exponentialBackoff(fn func() (Repository, error)) error {
+	for i := 0; i < 10; i++ {
+		_, err := fn()
+		if err == nil {
+			log.Println("[✅] repository migrated successfully")
+			return nil
+		}
+		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
+	}
+	return errors.New("exceeded maximum number of attempts")
 }

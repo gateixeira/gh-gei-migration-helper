@@ -14,6 +14,7 @@ import (
 const (
 	repositoryFlagName = "repo"
 )
+
 // migrateRepoCmd represents the migrateRepo command
 var migrateRepoCmd = &cobra.Command{
 	Use:   "migrate-repository",
@@ -37,7 +38,15 @@ var migrateRepoCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
+		_, err := github.GetRepository(repository, targetOrg, targetToken)
+
+		if err != nil {
+			log.Println("[❌] Repository already exists in target organization: " + repository)
+			os.Exit(1)
+		}
+
+		var repo github.Repository
+		repo, err = github.GetRepository(repository, sourceOrg, sourceToken)
 
 		if err != nil {
 			log.Println("[❌] Error getting repository: " + repository)

@@ -13,6 +13,8 @@ import (
 
 type Repository github.Repository
 
+type Workflow github.Workflow
+
 const githubDelay = 720 * time.Millisecond
 
 type BranchProtectionRule struct {
@@ -58,7 +60,7 @@ func checkClients(token string) error {
 }
 
 func logTokenRateLimit(response *github.Response) {
-	log.Printf("[ℹ️] Quota remaining: %d, Limit: %d, Reset: %s", response.Rate.Remaining, response.Rate.Limit, response.Rate.Reset)
+	log.Printf("Quota remaining: %d, Limit: %d, Reset: %s", response.Rate.Remaining, response.Rate.Limit, response.Rate.Reset)
 }
 
 func DeleteBranchProtections(organization string, repository string, token string) error {
@@ -255,7 +257,7 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 	return err
 }
 
-func GetAllActiveWorkflowsForRepository(organization string, repository string, token string) ([]*github.Workflow, error) {
+func GetAllActiveWorkflowsForRepository(organization string, repository string, token string) ([]Workflow, error) {
 	checkClients(token)
 
 	// list all workflows for the repository
@@ -277,17 +279,17 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 		opt.Page = response.NextPage
 	}
 
-	var activeWorkflowsStruct []*github.Workflow
+	var activeWorkflowsStruct []Workflow
 	for _, workflow := range allWorkflows {
 		if *workflow.State == "active" {
-			activeWorkflowsStruct = append(activeWorkflowsStruct, workflow)
+			activeWorkflowsStruct = append(activeWorkflowsStruct, Workflow(*workflow))
 		}
 	}
 
 	return activeWorkflowsStruct, nil
 }
 
-func DisableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) error {
+func DisableWorkflowsForRepository(organization string, repository string, workflows []Workflow, token string) error {
 	checkClients(token)
 
 	// disable all workflows
@@ -310,7 +312,7 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 	return nil
 }
 
-func EnableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) error {
+func EnableWorkflowsForRepository(organization string, repository string, workflows []Workflow, token string) error {
 	checkClients(token)
 
 	// enable all workflows

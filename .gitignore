@@ -1,3 +1,4 @@
 bin/
 *.octoshift*
 .DS_Store
+failed-repositories.txt

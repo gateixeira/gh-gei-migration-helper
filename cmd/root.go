@@ -4,16 +4,17 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"io/ioutil"
 	"os"
 
 	"github.com/spf13/cobra"
 )
 
-const VERSION = "0.1.0"
+const VERSION = "0.1.2"
 
 const (
-	sourceOrgFlagName  = "source-org"
-	targetOrgFlagName  = "target-org"
+	sourceOrgFlagName   = "source-org"
+	targetOrgFlagName   = "target-org"
 	sourceTokenFlagName = "source-token"
 	targetTokenFlagName = "target-token"
 )
@@ -21,9 +22,7 @@ const (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "gei-migration-helper",
-	Short: "Helper Application to prepare for GEI Migration",
-	Long: `This CLI application helps to prepare for GEI Migration.
-	It can be used to change the visibility of repositories, change GHAS settings for an organization and more.`,
+	Short: "Wrapper application to the GEI extension that orchestrates steps necessary to migrate reposistories and GHAS features",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
@@ -39,6 +38,15 @@ func Execute() {
 }
 
 func init() {
+	banner, err := ioutil.ReadFile("banner.txt")
+	if err != nil {
+		panic(err)
+	}
+	rootCmd.SetOut(os.Stdout)
+	rootCmd.SetErr(os.Stderr)
+	rootCmd.Version = VERSION
+	rootCmd.Println("\n\n" + string(banner) + "\n\n")
+
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
@@ -55,7 +63,4 @@ func init() {
 	rootCmd.PersistentFlags().String(targetTokenFlagName, "", "The token of the target organization.")
 	rootCmd.MarkFlagRequired(targetTokenFlagName)
 
-
 }
-
-

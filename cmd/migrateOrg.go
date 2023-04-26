@@ -42,24 +42,69 @@ var migrateOrgCmd = &cobra.Command{
 		log.Println("[✅] Done")
 
 		log.Println("[🔄] Fetching repositories from source organization")
-		repositories, err := github.GetRepositories(sourceOrg, sourceToken)
+		sourceRepositories, err := github.GetRepositories(sourceOrg, sourceToken)
+
 		if err != nil {
 			log.Println("[❌] Error fetching repositories from source organization")
 			os.Exit(1)
 		}
 
+		destinationRepositories, err := github.GetRepositories(targetOrg, targetToken)
+
+		if err != nil {
+			log.Println("[❌] Error fetching repositories from target organization")
+			os.Exit(1)
+		}
+
 		log.Println("[✅] Done")
 
-		for _, repository := range repositories {
+		// Remove intersection from source and destination repositories
+		m := make(map[string]bool)
+		for _, item := range destinationRepositories {
+			m[*item.Name] = true
+		}
+		var sourceRepositoriesToMigrate []github.Repository
+		for _, item := range sourceRepositories {
+			if _, ok := m[*item.Name]; !ok {
+				sourceRepositoriesToMigrate = append(sourceRepositoriesToMigrate, item)
+			} else {
+				log.Println("[🤝] Repository " + *item.Name + " already exists at target organization")
+			}
+		}
+
+		// initialize new empty string array
+		var failedRepositories []string
+		for _, repository := range sourceRepositoriesToMigrate {
 			if *repository.Name == ".github" {
 				continue
 			}
 
-			error := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-			if error != nil {
-				log.Println("[❌] Error migrating repository " + *repository.Name)
+			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+			if err != nil {
+				log.Println("[❌] Error migrating repository: ", err)
+				failedRepositories = append(failedRepositories, *repository.Name)
 				continue
 			}
+		}
+
+		if len(failedRepositories) > 0 {
+			//save failed repositories to file
+			f, err := os.Create("failed-repositories.txt")
+			if err != nil {
+				log.Println("[❌] Error creating file: ", err)
+				os.Exit(1)
+			}
+			defer f.Close()
+
+			for _, repository := range failedRepositories {
+				_, err := f.WriteString(repository + "\n")
+				if err != nil {
+					log.Println("[❌] Error writing to file: ", err)
+					os.Exit(1)
+				}
+			}
+			log.Println("[❌] Failed repositories saved to file failed-repositories.txt")
+			os.Exit(1)
 		}
 	},
 }
