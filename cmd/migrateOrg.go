@@ -38,7 +38,7 @@ var migrateOrgCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
 		log.Println("\n[🔄] Deactivating GHAS settings at target organization")
-		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
+		github.ChangeGHASOrgSettings(targetOrg, false, targetToken, "")
 		log.Println("[✅] Done")
 
 		log.Println("[🔄] Fetching repositories from source organization")

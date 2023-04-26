@@ -16,16 +16,16 @@ type Repository github.Repository
 const githubDelay = 720 * time.Millisecond
 
 type BranchProtectionRule struct {
-    Nodes []struct {
-		Id			  string
-    }
+	Nodes []struct {
+		Id string
+	}
 	PageInfo struct {
 		EndCursor   githubv4.String
 		HasNextPage bool
 	}
 }
 
-//type structure for the graphql query GetOrganizationsInEnterprise
+// type structure for the graphql query GetOrganizationsInEnterprise
 type Organization struct {
 	Nodes []struct {
 		Login string
@@ -37,13 +37,13 @@ type Organization struct {
 }
 
 var (
-	ctx context.Context
-	clientV3 *github.Client
-	clientV4 *githubv4.Client
+	ctx         context.Context
+	clientV3    *github.Client
+	clientV4    *githubv4.Client
 	accessToken string
 )
 
-func checkClients(token string) error {
+func checkClients(token string, url string) error {
 
 	// Sleep to avoid hitting the rate limit. Not ideal but a valid trade-off as the migration step in GEI consumes the majority of the time
 	time.Sleep(githubDelay)
@@ -61,8 +61,11 @@ func checkClients(token string) error {
 			return err
 		}
 
-		clientV3 = github.NewClient(rateLimiter)
-		clientV4 = githubv4.NewClient(rateLimiter)
+		clientV3, err = github.NewEnterpriseClient(url, url, rateLimiter)
+		if err != nil {
+			return err
+		}
+		clientV4 = githubv4.NewEnterpriseClient(url, rateLimiter)
 	}
 
 	return nil
@@ -73,7 +76,7 @@ func logTokenRateLimit(response *github.Response) {
 }
 
 func DeleteBranchProtections(organization string, repository string, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	var query struct {
 		Repository struct {
@@ -82,8 +85,8 @@ func DeleteBranchProtections(organization string, repository string, token strin
 	}
 
 	variables := map[string]interface{}{
-		"owner": githubv4.String(organization),
-		"name": githubv4.String(repository),
+		"owner":  githubv4.String(organization),
+		"name":   githubv4.String(repository),
 		"cursor": (*githubv4.String)(nil),
 	}
 
@@ -115,27 +118,27 @@ func DeleteBranchProtections(organization string, repository string, token strin
 		input := githubv4.DeleteBranchProtectionRuleInput{
 			BranchProtectionRuleID: branchProtection,
 		}
-	
+
 		ctx := context.WithValue(context.Background(), ctx, branchProtection)
 		err := clientV4.Mutate(ctx, &mutate, input, nil)
 
 		if err != nil {
 			log.Println("Error deleting branch protection rule: ", err)
 			return err
-		}	
+		}
 	}
 
 	return nil
 }
 
-func ChangeGHASOrgSettings(organization string, activate bool, token string) error {
-	checkClients(token)
+func ChangeGHASOrgSettings(organization string, activate bool, token string, url string) error {
+	checkClients(token, url)
 
 	//create new organization object
 	newOrgSettings := github.Organization{
-		AdvancedSecurityEnabledForNewRepos: &activate,
+		AdvancedSecurityEnabledForNewRepos:             &activate,
 		SecretScanningPushProtectionEnabledForNewRepos: &activate,
-		SecretScanningEnabledForNewRepos: &activate,
+		SecretScanningEnabledForNewRepos:               &activate,
 	}
 
 	// Update the organization
@@ -151,7 +154,7 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) err
 }
 
 func ChangeGhasRepoSettings(organization string, repository Repository, ghas string, secretScanning string, pushProtection string, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	var payload *github.SecurityAndAnalysis
 	//GHAS is always enabled for public repositories and PATCH fails when trying to set to disabled
@@ -196,7 +199,7 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 }
 
 func GetRepository(repoName string, org string, token string) (Repository, error) {
-	checkClients(token)
+	checkClients(token, "")
 
 	repo, _, err := clientV3.Repositories.Get(ctx, org, repoName)
 	if err != nil {
@@ -208,7 +211,7 @@ func GetRepository(repoName string, org string, token string) (Repository, error
 }
 
 func GetRepositories(org string, token string) ([]Repository, error) {
-	checkClients(token)
+	checkClients(token, "")
 
 	// list all repositories for the organization
 	opt := &github.RepositoryListByOrgOptions{Type: "all", ListOptions: github.ListOptions{PerPage: 10}}
@@ -239,7 +242,7 @@ func GetRepositories(org string, token string) ([]Repository, error) {
 }
 
 func ChangeRepositoryVisibility(organization string, repository string, visibility string, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	//create new repository object
 	newRepoSettings := github.Repository{
@@ -267,7 +270,7 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 }
 
 func GetAllActiveWorkflowsForRepository(organization string, repository string, token string) ([]*github.Workflow, error) {
-	checkClients(token)
+	checkClients(token, "")
 
 	// list all workflows for the repository
 	opt := &github.ListOptions{PerPage: 10}
@@ -299,7 +302,7 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 }
 
 func DisableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	// disable all workflows
 	for _, workflow := range workflows {
@@ -317,7 +320,7 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 }
 
 func EnableWorkflowsForRepository(organization string, repository string, workflows []*github.Workflow, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	// enable all workflows
 	for _, workflow := range workflows {
@@ -335,7 +338,7 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 }
 
 func HasCodeScanningAnalysis(organization string, repository string, token string) (bool, error) {
-	checkClients(token)
+	checkClients(token, "")
 
 	//list code scanning alerts
 	opt := &github.AlertListOptions{}
@@ -360,7 +363,7 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 }
 
 func ArchiveRepository(organization string, repository string, token string) error {
-	checkClients(token)
+	checkClients(token, "")
 
 	archive := true
 	newRepoSettings := github.Repository{
@@ -386,8 +389,8 @@ func ArchiveRepository(organization string, repository string, token string) err
 	return err
 }
 
-func GetOrganizationsInEnterprise(enterprise string, token string) ([]string, error) {
-	checkClients(token)
+func GetOrganizationsInEnterprise(enterprise string, token string, url string) ([]string, error) {
+	checkClients(token, url)
 
 	var query struct {
 		Enterprise struct {
@@ -397,7 +400,7 @@ func GetOrganizationsInEnterprise(enterprise string, token string) ([]string, er
 
 	variables := map[string]interface{}{
 		"enterprise": githubv4.String(enterprise),
-		"cursor": (*githubv4.String)(nil),
+		"cursor":     (*githubv4.String)(nil),
 	}
 
 	results := make([]string, 0)

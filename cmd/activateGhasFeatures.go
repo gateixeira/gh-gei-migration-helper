@@ -19,10 +19,11 @@ var activateGhasFeaturesCmd = &cobra.Command{
 		enterprise, _ := cmd.Flags().GetString("enterprise")
 		token, _ := cmd.Flags().GetString("token")
 		organization, _ := cmd.Flags().GetString("organization")
+		url, _ := cmd.Flags().GetString("url")
 
-		if (organization != "") {
+		if organization != "" {
 			log.Println("[🔄] Activating GHAS settings for organization: " + organization)
-			error := github.ChangeGHASOrgSettings(organization, true, token)
+			error := github.ChangeGHASOrgSettings(organization, true, token, url)
 
 			if error != nil {
 				log.Println("[❌] Error activating GHAS settings for organization: " + organization)
@@ -32,9 +33,9 @@ var activateGhasFeaturesCmd = &cobra.Command{
 			log.Println("[✅] Done")
 			os.Exit(0)
 		}
-		
+
 		log.Println("[🔄] Fetching organizations from enterprise...")
-		organizations, err := github.GetOrganizationsInEnterprise(enterprise, token)
+		organizations, err := github.GetOrganizationsInEnterprise(enterprise, token, url)
 		log.Println("[✅] Done")
 
 		if err != nil {
@@ -44,7 +45,7 @@ var activateGhasFeaturesCmd = &cobra.Command{
 
 		for _, organization := range organizations {
 			log.Println("[🔄] Activating GHAS settings for organization: " + organization)
-			error := github.ChangeGHASOrgSettings(organization, true, token)
+			error := github.ChangeGHASOrgSettings(organization, true, token, url)
 
 			if error != nil {
 				log.Println("[❌] Error activating GHAS settings for organization: " + organization)
@@ -61,4 +62,5 @@ func init() {
 	activateGhasFeaturesCmd.Flags().String("enterprise", "", "The slug of the enterprise")
 	activateGhasFeaturesCmd.Flags().String("token", "", "The access token")
 	activateGhasFeaturesCmd.Flags().String("organization", "", "To filter for a single organization")
+	activateGhasFeaturesCmd.Flags().String("url", "", "URL of the GitHub instance")
 }
