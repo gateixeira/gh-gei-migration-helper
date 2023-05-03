@@ -38,18 +38,10 @@ var migrateRepoCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		_, err := github.GetRepository(repository, targetOrg, targetToken)
+		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
 
 		if err != nil {
-			log.Println("[❌] Repository already exists in target organization: " + repository)
-			os.Exit(1)
-		}
-
-		var repo github.Repository
-		repo, err = github.GetRepository(repository, sourceOrg, sourceToken)
-
-		if err != nil {
-			log.Println("[❌] Error getting repository: " + repository)
+			log.Println("[❌] Error getting source repository: " + repository)
 			os.Exit(1)
 		}
 

@@ -51,11 +51,9 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	})
 
 	//check if repository is not private
-	if !*repository.Private {
-		ew.LogAndCallStep("Changing visibility to internal at target", func() error {
-			return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
-		})
-	}
+	ew.LogAndCallStep("Changing visibility to internal at target", func() error {
+		return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
+	})
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
 		ew.LogAndCallStep("Activating GHAS settings at target", func() error {
@@ -63,6 +61,13 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
 				*repository.SecurityAndAnalysis.SecretScanning.Status,
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
+		})
+
+		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
+			return github.ChangeGhasRepoSettings(sourceOrg, repository,
+				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
+				*repository.SecurityAndAnalysis.SecretScanning.Status,
+				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
 		})
 	}
 
@@ -119,7 +124,7 @@ func CheckAndMigrateCodeScanning(repository string, sourceOrg string, targetOrg 
 	}
 
 	var hasCodeScanningAnalysis bool
-	hasCodeScanningAnalysis, ew.err = github.HasCodeScanningAnalysis(*repo.Name, sourceOrg, sourceToken)
+	hasCodeScanningAnalysis, ew.err = github.HasCodeScanningAnalysis(sourceOrg, *repo.Name, sourceToken)
 
 	if ew.err != nil {
 		return ew.err

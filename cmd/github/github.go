@@ -299,10 +299,10 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 		logTokenRateLimit(response)
 
 		if err, ok := err.(*github.ErrorResponse); ok {
-			log.Println("failed to disable workflow: ", workflow.Name)
+			log.Println("Failed to disable workflow: ", workflow.Name)
 
 			if err.Response.StatusCode == 422 {
-				log.Println("error is 422. Skipping...")
+				log.Println("Error is 422. Unable to deactivate. Skipping...")
 				return nil
 			}
 			return err
@@ -338,10 +338,7 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 func HasCodeScanningAnalysis(organization string, repository string, token string) (bool, error) {
 	checkClients(token)
 
-	//list code scanning alerts
-	opt := &github.AlertListOptions{}
-
-	_, response, err := clientV3.CodeScanning.ListAlertsForRepo(ctx, organization, repository, opt)
+	_, response, err := clientV3.CodeScanning.ListAlertsForRepo(ctx, organization, repository, nil)
 
 	logTokenRateLimit(response)
 
@@ -349,6 +346,7 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
+				log.Println("No code scanning alerts found.")
 				return false, nil
 			} else {
 				log.Println("Error getting code scanning alerts: ", err)
