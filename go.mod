@@ -3,7 +3,7 @@ module github.com/gateixeira/gei-migration-helper
 go 1.20
 
 require (
-	github.com/gofri/go-github-ratelimit v1.0.2
+	github.com/gofri/go-github-ratelimit v1.0.3
 	github.com/google/go-github/v50 v50.2.0
 	github.com/shurcooL/githubv4 v0.0.0-20230305132112-efb623903184
 	github.com/spf13/cobra v1.6.1
