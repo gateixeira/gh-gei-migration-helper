@@ -4,7 +4,7 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"io/ioutil"
+	_ "embed"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -18,6 +18,9 @@ const (
 	sourceTokenFlagName = "source-token"
 	targetTokenFlagName = "target-token"
 )
+
+//go:embed banner.txt
+var banner []byte
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -38,10 +41,6 @@ func Execute() {
 }
 
 func init() {
-	banner, err := ioutil.ReadFile("banner.txt")
-	if err != nil {
-		panic(err)
-	}
 	rootCmd.SetOut(os.Stdout)
 	rootCmd.SetErr(os.Stderr)
 	rootCmd.Version = VERSION
