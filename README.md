@@ -6,12 +6,20 @@ This is a wrapper tool to GitHub Enterprise Importer that orchestrate necessary 
 
 It is a collection of scripts that can be used to help with the migration process by wrapping GEI commands and performing pre and post-migration changes
 
+## Installation
+
+the GEI Migration Helper can be installed via this command:
+
+```
+$ gh extension install gateixeira/gh-gei-migration-helper
+```
+
 ## Usage
 
 Run the tool via command line:
 
 ```
-$ ./gh-gei-migration-helper --help
+$ gh gei-migration-helper --help
 ```
 
 ## Migration process
@@ -49,7 +57,7 @@ This script can be used to migrate all repositories in an organization
 #### Usage
 
 ```
-$ ./gh-gei-migration-helper migrate-organization --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+$ gh gh-gei-migration-helper migrate-organization --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
 
 ### `migrate-repository`
@@ -59,7 +67,7 @@ This script can be used to migrate a single repository
 #### Usage
 
 ```
-$ ./gh-gei-migration-helper migrate-repository --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+$ gh gh-gei-migration-helper migrate-repository --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
 
 ### `migrate-secret-scanning`
@@ -69,7 +77,7 @@ Wrapper to migrate secret scan results. It migrates for all repositories in an o
 #### Usage
 
 ```
-$ ./gh-gei-migration-helper migrate-secret-scanning --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+$ gh gh-gei-migration-helper migrate-secret-scanning --repo <repository_name> --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
 
 ### `reactivate-target-workflow`
@@ -81,5 +89,5 @@ Omit the repository flag to run against the whole organization.
 #### Usage
 
 ```
-$ ./gh-gei-migration-helper reactivate-target-workflow --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+$ gh gh-gei-migration-helper reactivate-target-workflow --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
