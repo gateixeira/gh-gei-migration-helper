@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"log"
+	"time"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 )
@@ -22,38 +23,28 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		})
 	}
 
-	workflows, err := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
-
-	if err != nil {
-		return err
-	}
+	workflows, _ := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
 
 	if len(workflows) > 0 {
 		ew.LogAndCallStep("Disabling workflows at source repository", func() error {
 			return github.DisableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
 		})
-
-		if err != nil {
-			return err
-		}
 	}
 
 	ew.LogAndCallStep("Migrating repository", func() error {
 		return github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 	})
 
-	if err != nil {
-		return err
-	}
-
 	ew.LogAndCallStep("Deleting branch protections at target", func() error {
 		return github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
 	})
 
-	//check if repository is not private
 	ew.LogAndCallStep("Changing visibility to internal at target", func() error {
 		return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
 	})
+
+	log.Println("[⌛] Waiting 10 seconds for changes to apply...")
+	time.Sleep(10 * time.Second)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
 		ew.LogAndCallStep("Activating GHAS settings at target", func() error {
@@ -75,9 +66,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 	})
 
-	ew.LogAndCallStep("Archiving source repository", func() error {
-		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-	})
+	//check if repository is not archived
+	if !*repository.Archived {
+		ew.LogAndCallStep("Archiving source repository", func() error {
+			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+		})
+	}
 
 	reEnableOrigin(repository, sourceOrg, sourceToken, workflows)
 
