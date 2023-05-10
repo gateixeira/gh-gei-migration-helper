@@ -65,7 +65,6 @@ func exponentialBackoff(fn func() (Repository, error)) error {
 	for i := 0; i < 10; i++ {
 		_, err := fn()
 		if err == nil {
-			log.Println("[✅] repository migrated successfully")
 			return nil
 		} else {
 			log.Println("[⏳] retrying in", math.Pow(2, float64(i)), "seconds")

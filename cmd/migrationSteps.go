@@ -12,8 +12,9 @@ type errWritter struct {
 }
 
 func ProcessRepoMigration(repository github.Repository, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
-	log.Print(
-		"\n\n========================================\nRepository " + *repository.Name + "\n========================================\n")
+	log.Println("========================================")
+	log.Println("Repository " + *repository.Name)
+	log.Println("========================================")
 
 	ew := errWritter{}
 
@@ -39,12 +40,18 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
 	})
 
-	ew.LogAndCallStep("Changing visibility to internal at target", func() error {
-		return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
-	})
+	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
 
-	log.Println("[⌛] Waiting 10 seconds for changes to apply...")
-	time.Sleep(10 * time.Second)
+	if *newRepository.Visibility == "private" {
+		ew.LogAndCallStep("Changing visibility to internal at target", func() error {
+			return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
+		})
+
+		log.Println("[⌛] Waiting 10 seconds for changes to apply...")
+		time.Sleep(10 * time.Second)
+	} else {
+		log.Println("[🚫] Skipping visibility change because repository is already internal or public")
+	}
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
 		ew.LogAndCallStep("Activating GHAS settings at target", func() error {
@@ -60,18 +67,20 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 				*repository.SecurityAndAnalysis.SecretScanning.Status,
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
 		})
-	}
 
-	ew.LogAndCallStep("Migrating code scanning alerts", func() error {
-		return CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
-	})
+		ew.LogAndCallStep("Migrating code scanning alerts", func() error {
+			return CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+		})
+	} else {
+		log.Println("[🚫] Skipping GHAS related changes", *repository.Name, "because it is not enabled at source")
+	}
 
 	//check if repository is not archived
-	if !*repository.Archived {
-		ew.LogAndCallStep("Archiving source repository", func() error {
-			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-		})
-	}
+	// if !*repository.Archived {
+	// 	ew.LogAndCallStep("Archiving source repository", func() error {
+	// 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+	// 	})
+	// }
 
 	reEnableOrigin(repository, sourceOrg, sourceToken, workflows)
 
