@@ -76,11 +76,11 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	}
 
 	//check if repository is not archived
-	// if !*repository.Archived {
-	// 	ew.LogAndCallStep("Archiving source repository", func() error {
-	// 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-	// 	})
-	// }
+	if !*repository.Archived {
+	 	ew.LogAndCallStep("Archiving source repository", func() error {
+	 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+	 	})
+	}
 
 	reEnableOrigin(repository, sourceOrg, sourceToken, workflows)
 
