@@ -289,6 +289,36 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 	return activeWorkflowsStruct, nil
 }
 
+func GetAllWorkflowsForRepository(organization string, repository string, token string) ([]Workflow, error) {
+	checkClients(token)
+
+	// list all workflows for the repository
+	opt := &github.ListOptions{PerPage: 10}
+	var allWorkflows []Workflow
+	for {
+		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
+
+		logTokenRateLimit(response)
+
+		if err != nil {
+			log.Println("failed to list workflows: ", err)
+			return nil, err
+		}
+
+		for _, workflow := range workflows.Workflows {
+			// add all workflows to the list
+			allWorkflows = append(allWorkflows, Workflow(*workflow))
+		}
+
+		if response.NextPage == 0 {
+			break
+		}
+		opt.Page = response.NextPage
+	}
+
+	return allWorkflows, nil
+}
+
 func DisableWorkflowsForRepository(organization string, repository string, workflows []Workflow, token string) error {
 	checkClients(token)
 

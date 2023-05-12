@@ -75,10 +75,6 @@ var migrateOrgCmd = &cobra.Command{
 		// initialize new empty string array
 		var failedRepositories []string
 		for _, repository := range sourceRepositoriesToMigrate {
-			if *repository.Name == ".github" {
-				continue
-			}
-
 			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 			if err != nil {
 				log.Println("[❌] Error migrating repository: ", err)

@@ -24,17 +24,26 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		})
 	}
 
-	workflows, _ := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
+	sourceWorkflows, _ := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
 
-	if len(workflows) > 0 {
+	if len(sourceWorkflows) > 0 {
 		ew.LogAndCallStep("Disabling workflows at source repository", func() error {
-			return github.DisableWorkflowsForRepository(sourceOrg, *repository.Name, workflows, sourceToken)
+			return github.DisableWorkflowsForRepository(sourceOrg, *repository.Name, sourceWorkflows, sourceToken)
 		})
 	}
 
 	ew.LogAndCallStep("Migrating repository", func() error {
 		return github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 	})
+
+	targetWorkflows, _ := github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
+
+	if len(targetWorkflows) > 0 {
+		//this is unfortunately necessary as the workflows get re-enabled after org migration
+		ew.LogAndCallStep("Disabling workflows at target repository", func() error {
+			return github.DisableWorkflowsForRepository(targetOrg, *repository.Name, targetWorkflows, targetToken)
+		})
+	}
 
 	ew.LogAndCallStep("Deleting branch protections at target", func() error {
 		return github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
@@ -77,12 +86,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 
 	//check if repository is not archived
 	if !*repository.Archived {
-	 	ew.LogAndCallStep("Archiving source repository", func() error {
-	 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-	 	})
+		ew.LogAndCallStep("Archiving source repository", func() error {
+			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+		})
 	}
 
-	reEnableOrigin(repository, sourceOrg, sourceToken, workflows)
+	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
 
 	if ew.err != nil {
 		return ew.err
@@ -151,14 +160,36 @@ func CheckAndMigrateCodeScanning(repository string, sourceOrg string, targetOrg 
 func ReactivateTargetWorkflows(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
 	ew := errWritter{}
 
-	var workflows []github.Workflow
-	workflows, ew.err = github.GetAllActiveWorkflowsForRepository(sourceOrg, repository, sourceToken)
+	var sourceWorkflows []github.Workflow
+	sourceWorkflows, ew.err = github.GetAllActiveWorkflowsForRepository(sourceOrg, repository, sourceToken)
 
 	if ew.err != nil {
 		return ew.err
 	}
 
-	if len(workflows) > 0 {
+	var targetWorkflows []github.Workflow
+	targetWorkflows, ew.err = github.GetAllWorkflowsForRepository(targetOrg, repository, targetToken)
+
+	if ew.err != nil {
+		return ew.err
+	}
+
+	if len(sourceWorkflows) > 0 {
+
+		// add name of sourceWorkflows to a hash map
+		sourceWorkflowsMap := make(map[string]bool)
+		for _, workflow := range sourceWorkflows {
+			sourceWorkflowsMap[*workflow.Name] = true
+		}
+
+		// initialize list of workflows to enable with size of sourceWorkflows
+		workflows := make([]github.Workflow, 0, len(sourceWorkflows))
+		for _, workflow := range targetWorkflows {
+			if _, ok := sourceWorkflowsMap[*workflow.Name]; ok {
+				workflows = append(workflows, workflow)
+			}
+		}
+
 		ew.LogAndCallStep("Enabling workflows at target repository", func() error {
 			return github.EnableWorkflowsForRepository(targetOrg, repository, workflows, targetToken)
 		})
