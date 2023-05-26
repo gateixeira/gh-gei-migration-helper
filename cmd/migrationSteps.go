@@ -52,9 +52,22 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
 
 	if *newRepository.Visibility == "private" {
+
+		if *newRepository.Archived {
+			ew.LogAndCallStep("Unarchive target repository", func() error {
+				return github.UnarchiveRepository(targetOrg, *repository.Name, targetToken)
+			})
+		}
+
 		ew.LogAndCallStep("Changing visibility to internal at target", func() error {
 			return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
 		})
+
+		if *newRepository.Archived {
+			ew.LogAndCallStep("Archive target repository", func() error {
+				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
+			})
+		}
 
 		log.Println("[⌛] Waiting 10 seconds for changes to apply...")
 		time.Sleep(10 * time.Second)

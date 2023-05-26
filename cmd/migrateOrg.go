@@ -72,9 +72,14 @@ var migrateOrgCmd = &cobra.Command{
 			}
 		}
 
+		log.Printf("%d repositories to migrate", len(sourceRepositoriesToMigrate))
+
 		// initialize new empty string array
 		var failedRepositories []string
-		for _, repository := range sourceRepositoriesToMigrate {
+		for i, repository := range sourceRepositoriesToMigrate {
+			log.Println("========================================")
+			log.Printf("[🔄] Migrating repository %d of %d", i+1, len(sourceRepositoriesToMigrate))
+
 			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 			if err != nil {
 				log.Println("[❌] Error migrating repository: ", err)

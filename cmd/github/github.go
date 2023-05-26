@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
-	"github.com/google/go-github/v50/github"
+	"github.com/google/go-github/v52/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )
@@ -42,6 +42,7 @@ func checkClients(token string) error {
 	if clientV3 == nil || clientV4 == nil || token != accessToken {
 		accessToken = token
 		ctx = context.Background()
+
 		ts := oauth2.StaticTokenSource(
 			&oauth2.Token{AccessToken: token},
 		)
@@ -391,7 +392,16 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 func ArchiveRepository(organization string, repository string, token string) error {
 	checkClients(token)
 
-	archive := true
+	return ChangeArchiveRepository(organization, repository, true, token)
+}
+
+func UnarchiveRepository(organization string, repository string, token string) error {
+	checkClients(token)
+
+	return ChangeArchiveRepository(organization, repository, false, token)
+}
+
+func ChangeArchiveRepository(organization string, repository string, archive bool, token string) error {
 	newRepoSettings := github.Repository{
 		Archived: &archive,
 	}
