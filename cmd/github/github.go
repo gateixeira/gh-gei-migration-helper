@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
-	"github.com/google/go-github/v52/github"
+	"github.com/google/go-github/v55/github"
 	"github.com/shurcooL/githubv4"
 	"golang.org/x/oauth2"
 )

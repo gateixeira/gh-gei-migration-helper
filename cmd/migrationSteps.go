@@ -83,12 +83,14 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
 		})
 
-		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
-			return github.ChangeGhasRepoSettings(sourceOrg, repository,
-				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
-				*repository.SecurityAndAnalysis.SecretScanning.Status,
-				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
-		})
+		if !*repository.Archived {
+			ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
+				return github.ChangeGhasRepoSettings(sourceOrg, repository,
+					*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
+					*repository.SecurityAndAnalysis.SecretScanning.Status,
+					*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
+			})
+		}
 
 		ew.LogAndCallStep("Migrating code scanning alerts", func() error {
 			return CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
@@ -99,12 +101,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 
 	//check if repository is not archived
 	if !*repository.Archived {
+		reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
+
 		ew.LogAndCallStep("Archiving source repository", func() error {
 			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
 		})
 	}
-
-	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
 
 	if ew.err != nil {
 		return ew.err
