@@ -16,8 +16,25 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	log.Println("Repository " + *repository.Name)
 	log.Println("========================================")
 
+	log.Println("  is Archived? ", *repository.Archived)
+	if (repository.SecurityAndAnalysis.AdvancedSecurity != nil) {
+		log.Println("  ============================================")
+		log.Println("   Advanced Security Settings")
+		log.Println("  ============================================")
+		log.Println("   code scanning:      " + *repository.SecurityAndAnalysis.AdvancedSecurity.Status)
+		log.Println("   secret scanning:    " + *repository.SecurityAndAnalysis.SecretScanning.Status)
+		log.Println("   dependabot updates: " + *repository.SecurityAndAnalysis.DependabotSecurityUpdates.Status)
+	}
+	
 	ew := errWritter{}
 
+	// If the user terminates the process after this point, we can end up in a state that has GHAS settings not as we originally started out with,
+	// secondly, it is possible and in some cases very likely that code scanning is off (this is the default when the repo is archived). You
+	// cannot re-enable code scanning in the GitHub UI, but you can set it back on via an API call.
+	//
+	// To be able to check if there are code scanning results that we need to migrate, the code scanning feature needs to be enabled so the API to 
+	// fetch analyses on the repository will return any previous scans, otherwise it will be a 403 as the feature is not enabled.
+	//
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
 		ew.LogAndCallStep("Deactivating GHAS settings at source repository", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository, "disabled", "disabled", "disabled", sourceToken)
@@ -83,6 +100,9 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
 		})
 
+		// This logic is not quite right on archived repositories, see comment above, also this reopens the potential for incoming analyses
+		// to be processed, which is not ideal. Also the gating here on archived does not help, as this prevents us from checking if there
+		// ever were code scanning analyses and thus we would not migrate them.
 		if !*repository.Archived {
 			ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
 				return github.ChangeGhasRepoSettings(sourceOrg, repository,

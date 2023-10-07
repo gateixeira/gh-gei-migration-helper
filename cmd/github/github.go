@@ -369,11 +369,14 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 func HasCodeScanningAnalysis(organization string, repository string, token string) (bool, error) {
 	checkClients(token)
 
-	_, response, err := clientV3.CodeScanning.ListAlertsForRepo(ctx, organization, repository, nil)
+	_, response, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, nil)
 
 	logTokenRateLimit(response)
 
 	if err != nil {
+		// technically we can get a 403 error here as well when advanced security is not correctly enabled (this applies to archived repositories seen in the wild) 
+	    // but we do not appear to be hitting this error if code scanning has not been re-enabled on the target?
+
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
