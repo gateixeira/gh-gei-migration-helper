@@ -3,3 +3,4 @@ bin/
 .DS_Store
 failed-repositories.txt
 dist/
+.vscode/

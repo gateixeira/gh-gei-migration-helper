@@ -17,7 +17,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	log.Println("========================================")
 
 	log.Println("  is Archived? ", *repository.Archived)
-	if (repository.SecurityAndAnalysis.AdvancedSecurity != nil) {
+	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		log.Println("  ============================================")
 		log.Println("   Advanced Security Settings")
 		log.Println("  ============================================")
@@ -25,18 +25,19 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		log.Println("   secret scanning:    " + *repository.SecurityAndAnalysis.SecretScanning.Status)
 		log.Println("   dependabot updates: " + *repository.SecurityAndAnalysis.DependabotSecurityUpdates.Status)
 	}
-	
+
 	ew := errWritter{}
 
-	// If the user terminates the process after this point, we can end up in a state that has GHAS settings not as we originally started out with,
-	// secondly, it is possible and in some cases very likely that code scanning is off (this is the default when the repo is archived). You
-	// cannot re-enable code scanning in the GitHub UI, but you can set it back on via an API call.
-	//
-	// To be able to check if there are code scanning results that we need to migrate, the code scanning feature needs to be enabled so the API to 
-	// fetch analyses on the repository will return any previous scans, otherwise it will be a 403 as the feature is not enabled.
-	//
+	if repository.SecurityAndAnalysis.AdvancedSecurity == nil || *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "disabled" {
+		ew.LogAndCallStep("Activating code scanning at source repository to check for previous analysis", func() error {
+			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
+		})
+	}
+
+	hasCodeScanningAnalysis, _ := github.HasCodeScanningAnalysis(sourceOrg, *repository.Name, sourceToken)
+
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
-		ew.LogAndCallStep("Deactivating GHAS settings at source repository", func() error {
+		ew.LogAndCallStep("Disabling GHAS settings at source repository", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository, "disabled", "disabled", "disabled", sourceToken)
 		})
 	}
@@ -66,7 +67,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
 	})
 
-	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
+	newRepository, err := github.GetRepository(*repository.Name, targetOrg, targetToken)
+
+	if err != nil {
+		log.Println("failed to get repository: ", err)
+		return err
+	}
 
 	if *newRepository.Visibility == "private" {
 
@@ -80,7 +86,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 			return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
 		})
 
-		if *newRepository.Archived {
+		if *repository.Archived {
 			ew.LogAndCallStep("Archive target repository", func() error {
 				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
 			})
@@ -92,41 +98,46 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		log.Println("[🚫] Skipping visibility change because repository is already internal or public")
 	}
 
-	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
-		ew.LogAndCallStep("Activating GHAS settings at target", func() error {
+	if hasCodeScanningAnalysis {
+		ew.LogAndCallStep("Activating code scanning at target repository to migrate alerts", func() error {
+			return github.ChangeGhasRepoSettings(targetOrg, repository, "enabled", "disabled", "disabled", sourceToken)
+		})
+
+		ew.LogAndCallStep("Migrating code scanning alerts", func() error {
+			return MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+		})
+	} else {
+		log.Println("[🚫] Skipping code scanning related changes", *repository.Name, "because there's no scan to migrate")
+	}
+
+	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
+
+	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
+		ew.LogAndCallStep("Replaying GHAS settings at target", func() error {
 			return github.ChangeGhasRepoSettings(targetOrg, repository,
 				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
 				*repository.SecurityAndAnalysis.SecretScanning.Status,
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
 		})
 
-		// This logic is not quite right on archived repositories, see comment above, also this reopens the potential for incoming analyses
-		// to be processed, which is not ideal. Also the gating here on archived does not help, as this prevents us from checking if there
-		// ever were code scanning analyses and thus we would not migrate them.
-		if !*repository.Archived {
-			ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
-				return github.ChangeGhasRepoSettings(sourceOrg, repository,
-					*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
-					*repository.SecurityAndAnalysis.SecretScanning.Status,
-					*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
-			})
-		}
-
-		ew.LogAndCallStep("Migrating code scanning alerts", func() error {
-			return CheckAndMigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
+			return github.ChangeGhasRepoSettings(sourceOrg, repository,
+				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
+				*repository.SecurityAndAnalysis.SecretScanning.Status,
+				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
 		})
 	} else {
-		log.Println("[🚫] Skipping GHAS related changes", *repository.Name, "because it is not enabled at source")
+		ew.LogAndCallStep("No GHAS feature enabled at source, disabling at target", func() error {
+			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
+		})
 	}
 
 	//check if repository is not archived
-	if !*repository.Archived {
-		reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
-
-		ew.LogAndCallStep("Archiving source repository", func() error {
-			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-		})
-	}
+	// if !*repository.Archived {
+	// 	ew.LogAndCallStep("Archiving source repository", func() error {
+	// 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+	// 	})
+	// }
 
 	if ew.err != nil {
 		return ew.err
@@ -160,30 +171,12 @@ func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOr
 	return nil
 }
 
-func CheckAndMigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
 	ew := errWritter{}
 
-	var repo github.Repository
-	repo, ew.err = github.GetRepository(repository, sourceOrg, sourceToken)
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	var hasCodeScanningAnalysis bool
-	hasCodeScanningAnalysis, ew.err = github.HasCodeScanningAnalysis(sourceOrg, *repo.Name, sourceToken)
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	if hasCodeScanningAnalysis {
-		ew.LogAndCallStep("Migrating code scanning alerts for repository", func() error {
-			return github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-		})
-	} else {
-		log.Println("[🚫] Skipping repository", repository, "because it does not have code scanning analysis")
-	}
+	ew.LogAndCallStep("Migrating code scanning alerts for repository", func() error {
+		return github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+	})
 
 	if ew.err != nil {
 		return ew.err

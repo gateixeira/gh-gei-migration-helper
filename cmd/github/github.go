@@ -180,8 +180,14 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 
 	logTokenRateLimit(response)
 
+	log.Println("[⌛] Waiting 10 seconds for changes to apply...")
+	time.Sleep(10 * time.Second)
+
 	if err != nil {
-		log.Println("Error updating repository settings: ", err)
+		if response.StatusCode == 422 {
+			log.Print("422 error, deactivation likely succeeded. Continuing...", err)
+			return nil
+		}
 	}
 
 	return err
@@ -330,13 +336,12 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 		logTokenRateLimit(response)
 
 		if err, ok := err.(*github.ErrorResponse); ok {
-			log.Println("Failed to disable workflow: ", workflow.Name)
+			log.Println("Failed to disable workflow: ", workflow.Name, " - will not stop migration")
 
 			if err.Response.StatusCode == 422 {
-				log.Println("Error is 422. Unable to deactivate. Skipping...")
-				return nil
+				log.Println("Error is 422. Skipping...")
 			}
-			return err
+			return nil
 		}
 	}
 
@@ -374,8 +379,8 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 	logTokenRateLimit(response)
 
 	if err != nil {
-		// technically we can get a 403 error here as well when advanced security is not correctly enabled (this applies to archived repositories seen in the wild) 
-	    // but we do not appear to be hitting this error if code scanning has not been re-enabled on the target?
+		// technically we can get a 403 error here as well when advanced security is not correctly enabled (this applies to archived repositories seen in the wild)
+		// but we do not appear to be hitting this error if code scanning has not been re-enabled on the target?
 
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
