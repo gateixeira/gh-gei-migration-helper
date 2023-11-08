@@ -26,16 +26,38 @@ $ gh gei-migration-helper --help
 
 Read all repositories from source organization and for each repository:
 
-1. Deactivate GitHub Advanced Security features at source repository if enabled
-2. Disable workflows at source repository, if any
-3. Migrate repository to target organization
-4. Delete branch protections at target (To be removed in a later version)
-5. If repository is internal at source it should be reset to internal at target after migration
-6. Activate GitHub Advanced Security at target
-7. Reactivate GitHub Advanced Security at source
-8. Migrate code scanning alerts
-9. Re-enable workflows at source, if any
-10. Archive source repository
+1. Check if code scanning analysis exist at source
+    - Activate code scanning at source if not already activated
+    - 1.2 Check if code scanning analysis exist at source
+2. Disable GHAS at source
+3. Disable workflows at source
+4. Migrate repository
+5. Disable workflows at target (they get re-enabled after a migration)
+6. Delete branch protections at target
+7. Check if target repository is private
+    - 7.1 Check if target repository is archived
+        - 7.1.1 Unarchive target repository
+    - 7.2 Change visibility of target repository to internal 
+    - 7.3 Check if target repository was archived
+        - 7.3.1 Archive target repository
+8. Check if source repository has code scanning analysis
+    - 8.1 Check if target repository is archived
+        - 8.1.1 Unarchive target repository
+    - 8.2 Activate code scanning at target
+    - 8.3 Activate code scanning at source
+    - 8.4 Migrate code scanning alerts
+    - 8.5 Check if target repository was archived
+        - 8.5.1 Archive target repository
+9. Reset origin
+    - 9.1 Reset GHAS settings at source
+    - 9.2 Reset workflows at source
+10. Check if GHAS was enabled at source
+    - 10.1 Replay GHAS source settings at target
+    - 10.2 Reset GHAS settings at source
+11. If GHAS was not enabled at source
+    - 11.1 Disable GHAS at target
+12. Check if source repository is archived
+    - 12.1 Archive source repository
 
 ## Manual steps to execute a migration
 

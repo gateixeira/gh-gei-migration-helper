@@ -15,15 +15,15 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	log.Println("========================================")
 	log.Println("Repository " + *repository.Name)
 	log.Println("========================================")
+	log.Println("Archived: ", *repository.Archived)
+	log.Println("Visibility: ", *repository.Visibility)
 
-	log.Println("  is Archived? ", *repository.Archived)
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
-		log.Println("  ============================================")
-		log.Println("   Advanced Security Settings")
-		log.Println("  ============================================")
-		log.Println("   code scanning:      " + *repository.SecurityAndAnalysis.AdvancedSecurity.Status)
-		log.Println("   secret scanning:    " + *repository.SecurityAndAnalysis.SecretScanning.Status)
-		log.Println("   dependabot updates: " + *repository.SecurityAndAnalysis.DependabotSecurityUpdates.Status)
+		log.Println("GHAS Settings:")
+		log.Println("Code Scanning: " + *repository.SecurityAndAnalysis.AdvancedSecurity.Status)
+		log.Println("Secret Scanning: " + *repository.SecurityAndAnalysis.SecretScanning.Status)
+		log.Println("Push Protection: " + *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status)
+		log.Println("Dependabot Updates: " + *repository.SecurityAndAnalysis.DependabotSecurityUpdates.Status)
 	}
 
 	ew := errWritter{}
@@ -36,7 +36,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 
 	hasCodeScanningAnalysis, _ := github.HasCodeScanningAnalysis(sourceOrg, *repository.Name, sourceToken)
 
-	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
+	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		ew.LogAndCallStep("Disabling GHAS settings at source repository", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository, "disabled", "disabled", "disabled", sourceToken)
 		})
@@ -99,15 +99,33 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	}
 
 	if hasCodeScanningAnalysis {
+		log.Println("[i] Repository has code scanning analysis")
+
+		if *newRepository.Archived {
+			ew.LogAndCallStep("Unarchive target repository", func() error {
+				return github.UnarchiveRepository(targetOrg, *repository.Name, targetToken)
+			})
+		}
+
 		ew.LogAndCallStep("Activating code scanning at target repository to migrate alerts", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, repository, "enabled", "disabled", "disabled", sourceToken)
+			return github.ChangeGhasRepoSettings(targetOrg, newRepository, "enabled", "disabled", "disabled", sourceToken)
+		})
+
+		ew.LogAndCallStep("Activating code scanning at source repository to migrate alerts", func() error {
+			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
 		})
 
 		ew.LogAndCallStep("Migrating code scanning alerts", func() error {
-			return MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+			return github.MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 		})
+
+		if *newRepository.Archived {
+			ew.LogAndCallStep("Archive target repository", func() error {
+				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
+			})
+		}
 	} else {
-		log.Println("[🚫] Skipping code scanning related changes", *repository.Name, "because there's no scan to migrate")
+		log.Println("[🚫] No code scan to migrate, skipping.")
 	}
 
 	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
@@ -133,15 +151,17 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	}
 
 	//check if repository is not archived
-	// if !*repository.Archived {
-	// 	ew.LogAndCallStep("Archiving source repository", func() error {
-	// 		return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
-	// 	})
-	// }
+	if !*repository.Archived {
+		ew.LogAndCallStep("Archiving source repository", func() error {
+			return github.ArchiveRepository(sourceOrg, *repository.Name, sourceToken)
+		})
+	}
 
 	if ew.err != nil {
 		return ew.err
 	}
+
+	log.Println("[🎉] Finished migrating repository ", *repository.Name)
 
 	return nil
 }
@@ -163,20 +183,6 @@ func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOr
 	} else {
 		log.Println("[🚫] Skipping repository", repository, "because secret scanning is not enabled")
 	}
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	return nil
-}
-
-func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
-	ew := errWritter{}
-
-	ew.LogAndCallStep("Migrating code scanning alerts for repository", func() error {
-		return github.MigrateCodeScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-	})
 
 	if ew.err != nil {
 		return ew.err

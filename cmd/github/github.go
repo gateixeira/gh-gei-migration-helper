@@ -60,10 +60,6 @@ func checkClients(token string) error {
 	return nil
 }
 
-func logTokenRateLimit(response *github.Response) {
-	log.Printf("Quota remaining: %d, Limit: %d, Reset: %s", response.Rate.Remaining, response.Rate.Limit, response.Rate.Reset)
-}
-
 func DeleteBranchProtections(organization string, repository string, token string) error {
 	checkClients(token)
 
@@ -131,9 +127,7 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) err
 	}
 
 	// Update the organization
-	_, response, err := clientV3.Organizations.Edit(ctx, organization, &newOrgSettings)
-
-	logTokenRateLimit(response)
+	_, _, err := clientV3.Organizations.Edit(ctx, organization, &newOrgSettings)
 
 	if err != nil {
 		log.Println("Error updating organization settings: ", err)
@@ -178,14 +172,12 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 	// Update the repository
 	_, response, err := clientV3.Repositories.Edit(ctx, organization, *repository.Name, &newRepoSettings)
 
-	logTokenRateLimit(response)
-
 	log.Println("[⌛] Waiting 10 seconds for changes to apply...")
 	time.Sleep(10 * time.Second)
 
 	if err != nil {
 		if response.StatusCode == 422 {
-			log.Print("422 error, deactivation likely succeeded. Continuing...", err)
+			// Skip if error is 422 as this is likely a false negative
 			return nil
 		}
 	}
@@ -213,8 +205,6 @@ func GetRepositories(org string, token string) ([]Repository, error) {
 	var allRepos []*github.Repository
 	for {
 		repos, response, err := clientV3.Repositories.ListByOrg(ctx, org, opt)
-
-		logTokenRateLimit(response)
 
 		if err != nil {
 			log.Println("Error getting repositories: ", err)
@@ -245,15 +235,12 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 	}
 
 	// Update the repository
-	_, response, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
-
-	logTokenRateLimit(response)
+	_, _, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
 
 	if err != nil {
-		//test if error code is 422
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 422 {
-				log.Println("Repository is already set to " + visibility)
+				// Skip if error is 422 as this is likely a false negative
 				return nil
 			} else {
 				log.Println("Error changing repository visibility: ", err)
@@ -272,8 +259,6 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 	var allWorkflows []*github.Workflow
 	for {
 		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
-
-		logTokenRateLimit(response)
 
 		if err != nil {
 			log.Println("failed to list workflows: ", err)
@@ -305,8 +290,6 @@ func GetAllWorkflowsForRepository(organization string, repository string, token 
 	for {
 		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
 
-		logTokenRateLimit(response)
-
 		if err != nil {
 			log.Println("failed to list workflows: ", err)
 			return nil, err
@@ -331,16 +314,10 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 
 	// disable all workflows
 	for _, workflow := range workflows {
-		response, err := clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
+		_, err := clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
 
-		logTokenRateLimit(response)
-
-		if err, ok := err.(*github.ErrorResponse); ok {
+		if _, ok := err.(*github.ErrorResponse); ok {
 			log.Println("Failed to disable workflow: ", workflow.Name, " - will not stop migration")
-
-			if err.Response.StatusCode == 422 {
-				log.Println("Error is 422. Skipping...")
-			}
 			return nil
 		}
 	}
@@ -353,15 +330,11 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 
 	// enable all workflows
 	for _, workflow := range workflows {
-		response, err := clientV3.Actions.EnableWorkflowByID(ctx, organization, repository, *workflow.ID)
-
-		logTokenRateLimit(response)
+		_, err := clientV3.Actions.EnableWorkflowByID(ctx, organization, repository, *workflow.ID)
 
 		if err, ok := err.(*github.ErrorResponse); ok {
-			log.Println("failed to enable workflow: ", workflow.Name)
-
 			if err.Response.StatusCode == 422 {
-				log.Println("error is 422. Skipping...")
+				// Skip if error is 422 as this is likely a false negative
 				return nil
 			}
 			return err
@@ -374,9 +347,7 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 func HasCodeScanningAnalysis(organization string, repository string, token string) (bool, error) {
 	checkClients(token)
 
-	_, response, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, nil)
-
-	logTokenRateLimit(response)
+	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, nil)
 
 	if err != nil {
 		// technically we can get a 403 error here as well when advanced security is not correctly enabled (this applies to archived repositories seen in the wild)
@@ -385,13 +356,16 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
-				log.Println("No code scanning alerts found.")
 				return false, nil
 			} else {
-				log.Println("Error getting code scanning alerts: ", err)
+				log.Println("Error getting code scanning analysis: ", err)
 				return false, err
 			}
 		}
+	}
+
+	if len(analysis) == 0 {
+		return false, nil
 	}
 
 	return true, nil
@@ -414,9 +388,7 @@ func ChangeArchiveRepository(organization string, repository string, archive boo
 		Archived: &archive,
 	}
 
-	_, response, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
-
-	logTokenRateLimit(response)
+	_, _, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
 
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {

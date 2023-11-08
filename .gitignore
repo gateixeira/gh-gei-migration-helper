@@ -1,6 +1,6 @@
 bin/
 *.octoshift*
 .DS_Store
-failed-repositories.txt
+migration-result.json
 dist/
 .vscode/
