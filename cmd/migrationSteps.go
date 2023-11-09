@@ -119,6 +119,10 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 			return github.MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 		})
 
+		ew.LogAndCallStep("Deactivating code scanning at target", func() error {
+			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
+		})
+
 		if *newRepository.Archived {
 			ew.LogAndCallStep("Archive target repository", func() error {
 				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
@@ -131,22 +135,11 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
-		ew.LogAndCallStep("Replaying GHAS settings at target", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, repository,
-				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
-				*repository.SecurityAndAnalysis.SecretScanning.Status,
-				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, targetToken)
-		})
-
 		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository,
 				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
 				*repository.SecurityAndAnalysis.SecretScanning.Status,
 				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
-		})
-	} else {
-		ew.LogAndCallStep("No GHAS feature enabled at source, disabling at target", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
 		})
 	}
 
