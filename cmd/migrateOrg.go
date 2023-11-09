@@ -20,8 +20,12 @@ type MigrationResult struct {
 }
 
 type Repo struct {
-	Name string `json:"name"`
-	ID   int64  `json:"id"`
+	Name           string `json:"name"`
+	ID             int64  `json:"id"`
+	Archived       bool   `json:"archived"`
+	CodeScanning   string `json:"codeScanning" default:"disabled"`
+	SecretScanning string `json:"secretScanning" default:"disabled"`
+	PushProtection string `json:"pushProtection" default:"disabled"`
 }
 
 // migrateOrgCmd represents the migrateOrg command
@@ -91,13 +95,26 @@ var migrateOrgCmd = &cobra.Command{
 			log.Printf("[🔄] Migrating repository %d of %d", i+1, len(sourceRepositoriesToMigrate))
 
 			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+
+			var repoSummary = Repo{
+				Name:     *repository.Name,
+				ID:       *repository.ID,
+				Archived: *repository.Archived,
+			}
+
+			if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
+				repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
+				repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
+				repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
+			}
+
 			if err != nil {
 				log.Println("[❌] Error migrating repository: ", err)
-				failedRepos = append(failedRepos, Repo{Name: *repository.Name, ID: *repository.ID})
+				failedRepos = append(failedRepos, repoSummary)
 				continue
 			}
 
-			migratedRepos = append(migratedRepos, Repo{Name: *repository.Name, ID: *repository.ID})
+			migratedRepos = append(migratedRepos, repoSummary)
 		}
 
 		migrationResult := MigrationResult{

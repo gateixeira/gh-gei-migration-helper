@@ -99,7 +99,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	}
 
 	if hasCodeScanningAnalysis {
-		log.Println("[i] Repository has code scanning analysis")
+		log.Println("[💡] Repository has code scanning analysis")
 
 		if *newRepository.Archived {
 			ew.LogAndCallStep("Unarchive target repository", func() error {
@@ -108,7 +108,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		}
 
 		ew.LogAndCallStep("Activating code scanning at target repository to migrate alerts", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, newRepository, "enabled", "disabled", "disabled", sourceToken)
+			return github.ChangeGhasRepoSettings(targetOrg, newRepository, "enabled", "disabled", "disabled", targetToken)
 		})
 
 		ew.LogAndCallStep("Activating code scanning at source repository to migrate alerts", func() error {
