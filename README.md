@@ -46,18 +46,15 @@ Read all repositories from source organization and for each repository:
     - 8.2 Activate code scanning at target
     - 8.3 Activate code scanning at source
     - 8.4 Migrate code scanning alerts
-    - 8.5 Check if target repository was archived
-        - 8.5.1 Archive target repository
+    - 8.5 Deactivate code Scanning at target
+    - 8.6 Check if target repository was archived
+        - 8.6.1 Archive target repository
 9. Reset origin
     - 9.1 Reset GHAS settings at source
     - 9.2 Reset workflows at source
-10. Check if GHAS was enabled at source
-    - 10.1 Replay GHAS source settings at target
-    - 10.2 Reset GHAS settings at source
-11. If GHAS was not enabled at source
-    - 11.1 Disable GHAS at target
-12. Check if source repository is archived
-    - 12.1 Archive source repository
+10. Reset GHAS settings at source
+11. Check if source repository is archived
+    - 11.1 Archive source repository
 
 ## Manual steps to execute a migration
 

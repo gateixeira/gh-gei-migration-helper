@@ -119,6 +119,10 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 			return github.MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 		})
 
+		ew.LogAndCallStep("Deactivating code scanning at source", func() error {
+			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
+		})
+
 		ew.LogAndCallStep("Deactivating code scanning at target", func() error {
 			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
 		})
