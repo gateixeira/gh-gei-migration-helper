@@ -238,7 +238,17 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 		return
 	}
 	log.Printf("[🔄] %s\n", stepName)
-	ew.err = f()
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		err := f()
+		if err == nil {
+			break
+		}
+
+		// Exponential backoff: 2^i * 100ms
+		time.Sleep(time.Duration((1<<uint(i))*1000) * time.Millisecond)
+		log.Printf("[⏳] Retrying %d/%d...", i+1, maxRetries)
+	}
 	if ew.err != nil {
 		log.Printf("[❌] %s Error: %v\n", stepName, ew.err)
 		return
