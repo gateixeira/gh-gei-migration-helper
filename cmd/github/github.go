@@ -350,9 +350,6 @@ func HasCodeScanningAnalysis(organization string, repository string, token strin
 	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, nil)
 
 	if err != nil {
-		// technically we can get a 403 error here as well when advanced security is not correctly enabled (this applies to archived repositories seen in the wild)
-		// but we do not appear to be hitting this error if code scanning has not been re-enabled on the target?
-
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
