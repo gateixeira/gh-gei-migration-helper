@@ -26,35 +26,30 @@ $ gh gei-migration-helper --help
 
 Read all repositories from source organization and for each repository:
 
-1. Check if code scanning analysis exist at source
+1. Check if code scanning analysis exist at source in default branch
     - Activate code scanning at source if not already activated
     - 1.2 Check if code scanning analysis exist at source
 2. Disable GHAS at source
 3. Disable workflows at source
 4. Migrate repository
 5. Disable workflows at target (they get re-enabled after a migration)
-6. Delete branch protections at target
-7. Check if target repository is private
-    - 7.1 Check if target repository is archived
-        - 7.1.1 Unarchive target repository
-    - 7.2 Change visibility of target repository to internal 
-    - 7.3 Check if target repository was archived
-        - 7.3.1 Archive target repository
-8. Check if source repository has code scanning analysis
-    - 8.1 Check if target repository is archived
-        - 8.1.1 Unarchive target repository
-    - 8.2 Activate code scanning at target
-    - 8.3 Activate code scanning at source
-    - 8.4 Migrate code scanning alerts
-    - 8.5 Deactivate code Scanning at target
-    - 8.6 Check if target repository was archived
-        - 8.6.1 Archive target repository
-9. Reset origin
-    - 9.1 Reset GHAS settings at source
-    - 9.2 Reset workflows at source
-10. Reset GHAS settings at source
-11. Check if source repository is archived
-    - 11.1 Archive source repository
+6. Check if target repository is archived
+    - 6.1 Unarchive target repository
+7. Delete branch protections at target
+8. Check if target repository is private
+    - 8.1 Change visibility of target repository to internal 
+9. Activate GHAS at target
+10. If source repository has code scanning analysis
+    - 10.1 Activate code scanning at source
+    - 10.2 Migrate code scanning alerts
+    - 10.3 Deactivate code Scanning at source
+11. Check if target repository is archived
+    - 11.1 Archive target repository
+12. Reset origin
+    - 12.1 Reset GHAS settings at source
+    - 12.2 Reset workflows at source
+13. Check if source repository is archived
+    - 13.1 Archive source repository
 
 ## Manual steps to execute a migration
 

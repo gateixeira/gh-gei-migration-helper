@@ -344,28 +344,28 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 	return nil
 }
 
-func HasCodeScanningAnalysis(organization string, repository string, token string) (bool, error) {
+func GetCodeScanningAnalysis(organization string, repository string, defaultBranch string, token string) ([]*github.ScanningAnalysis, error) {
 	checkClients(token)
 
-	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, nil)
+	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, &github.AnalysesListOptions{Ref: &defaultBranch})
 
 	if err != nil {
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
-				return false, nil
+				return []*github.ScanningAnalysis{}, nil
 			} else {
 				log.Println("Error getting code scanning analysis: ", err)
-				return false, err
+				return []*github.ScanningAnalysis{}, err
 			}
 		}
 	}
 
 	if len(analysis) == 0 {
-		return false, nil
+		return []*github.ScanningAnalysis{}, nil
 	}
 
-	return true, nil
+	return analysis, nil
 }
 
 func ArchiveRepository(organization string, repository string, token string) error {

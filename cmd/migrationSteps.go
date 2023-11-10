@@ -34,7 +34,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		})
 	}
 
-	hasCodeScanningAnalysis, _ := github.HasCodeScanningAnalysis(sourceOrg, *repository.Name, sourceToken)
+	codeScanningAnalysis, _ := github.GetCodeScanningAnalysis(sourceOrg, *repository.Name, *repository.DefaultBranch, sourceToken)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		ew.LogAndCallStep("Disabling GHAS settings at source repository", func() error {
@@ -54,6 +54,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 	})
 
+	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
 	targetWorkflows, _ := github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
 
 	if len(targetWorkflows) > 0 {
@@ -63,34 +64,20 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		})
 	}
 
+	if *newRepository.Archived {
+		ew.LogAndCallStep("Unarchive target repository", func() error {
+			return github.UnarchiveRepository(targetOrg, *repository.Name, targetToken)
+		})
+	}
+
 	ew.LogAndCallStep("Deleting branch protections at target", func() error {
 		return github.DeleteBranchProtections(targetOrg, *repository.Name, targetToken)
 	})
 
-	newRepository, err := github.GetRepository(*repository.Name, targetOrg, targetToken)
-
-	if err != nil {
-		log.Println("failed to get repository: ", err)
-		return err
-	}
-
 	if *newRepository.Visibility == "private" {
-
-		if *newRepository.Archived {
-			ew.LogAndCallStep("Unarchive target repository", func() error {
-				return github.UnarchiveRepository(targetOrg, *repository.Name, targetToken)
-			})
-		}
-
 		ew.LogAndCallStep("Changing visibility to internal at target", func() error {
 			return github.ChangeRepositoryVisibility(targetOrg, *repository.Name, "internal", targetToken)
 		})
-
-		if *repository.Archived {
-			ew.LogAndCallStep("Archive target repository", func() error {
-				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
-			})
-		}
 
 		log.Println("[⌛] Waiting 10 seconds for changes to apply...")
 		time.Sleep(10 * time.Second)
@@ -98,18 +85,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		log.Println("[🚫] Skipping visibility change because repository is already internal or public")
 	}
 
-	if hasCodeScanningAnalysis {
-		log.Println("[💡] Repository has code scanning analysis")
+	ew.LogAndCallStep("Activating GHAS at target", func() error {
+		return github.ChangeGhasRepoSettings(targetOrg, newRepository, "enabled", "enabled", "enabled", targetToken)
+	})
 
-		if *newRepository.Archived {
-			ew.LogAndCallStep("Unarchive target repository", func() error {
-				return github.UnarchiveRepository(targetOrg, *repository.Name, targetToken)
-			})
-		}
-
-		ew.LogAndCallStep("Activating code scanning at target repository to migrate alerts", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, newRepository, "enabled", "disabled", "disabled", targetToken)
-		})
+	if len(codeScanningAnalysis) > 0 {
+		log.Printf("[💡] Found %d code scanning analysis at source in default branch (%s) before migration", len(codeScanningAnalysis), *repository.DefaultBranch)
 
 		ew.LogAndCallStep("Activating code scanning at source repository to migrate alerts", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
@@ -119,33 +100,23 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 			return github.MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 		})
 
+		codeScanningAnalysis, _ := github.GetCodeScanningAnalysis(targetOrg, *repository.Name, *repository.DefaultBranch, targetToken)
+		log.Printf("[💡] Found %d code scanning analysis at target in default branch (%s) after migration", len(codeScanningAnalysis), *repository.DefaultBranch)
+
 		ew.LogAndCallStep("Deactivating code scanning at source", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
+			return github.ChangeGhasRepoSettings(sourceOrg, repository, "disabled", "disabled", "disabled", sourceToken)
 		})
-
-		ew.LogAndCallStep("Deactivating code scanning at target", func() error {
-			return github.ChangeGhasRepoSettings(targetOrg, repository, "disabled", "disabled", "disabled", targetToken)
-		})
-
-		if *newRepository.Archived {
-			ew.LogAndCallStep("Archive target repository", func() error {
-				return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
-			})
-		}
 	} else {
 		log.Println("[🚫] No code scan to migrate, skipping.")
 	}
 
-	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
-
-	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
-		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
-			return github.ChangeGhasRepoSettings(sourceOrg, repository,
-				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
-				*repository.SecurityAndAnalysis.SecretScanning.Status,
-				*repository.SecurityAndAnalysis.SecretScanningPushProtection.Status, sourceToken)
+	if *newRepository.Archived {
+		ew.LogAndCallStep("Archive target repository", func() error {
+			return github.ArchiveRepository(targetOrg, *repository.Name, targetToken)
 		})
 	}
+
+	reEnableOrigin(repository, sourceOrg, sourceToken, sourceWorkflows)
 
 	//check if repository is not archived
 	if !*repository.Archived {
@@ -240,8 +211,8 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 	log.Printf("[🔄] %s\n", stepName)
 	maxRetries := 5
 	for i := 0; i < maxRetries; i++ {
-		err := f()
-		if err == nil {
+		ew.err = f()
+		if ew.err == nil {
 			break
 		}
 
@@ -249,6 +220,7 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 		time.Sleep(time.Duration((1<<uint(i))*1000) * time.Millisecond)
 		log.Printf("[⏳] Retrying %d/%d...", i+1, maxRetries)
 	}
+
 	if ew.err != nil {
 		log.Printf("[❌] %s Error: %v\n", stepName, ew.err)
 		return
@@ -259,7 +231,7 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 func reEnableOrigin(repository github.Repository, sourceOrg string, sourceToken string, workflows []github.Workflow) {
 	ew := errWritter{}
 
-	if repository.SecurityAndAnalysis.AdvancedSecurity != nil && *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
+	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		ew.LogAndCallStep("Resetting GHAS settings at source repository", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository,
 				*repository.SecurityAndAnalysis.AdvancedSecurity.Status,
