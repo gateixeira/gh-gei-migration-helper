@@ -29,7 +29,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	ew := errWritter{}
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity == nil || *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "disabled" {
-		ew.LogAndCallStep("Activating code scanning at source repository to check for previous analysis", func() error {
+		ew.LogAndCallStep("Activating code scanning at source repository to check for previous analyses", func() error {
 			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
 		})
 	}
