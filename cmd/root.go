@@ -17,6 +17,7 @@ const (
 	targetOrgFlagName   = "target-org"
 	sourceTokenFlagName = "source-token"
 	targetTokenFlagName = "target-token"
+	maxRetriesFlagName  = "max-retries"
 )
 
 //go:embed banner.txt
@@ -51,15 +52,16 @@ func init() {
 	// will be global for your application.
 
 	rootCmd.PersistentFlags().String(sourceOrgFlagName, "", "The source organization.")
-	rootCmd.MarkFlagRequired(sourceOrgFlagName)
+	rootCmd.MarkPersistentFlagRequired(sourceOrgFlagName)
 
 	rootCmd.PersistentFlags().String(targetOrgFlagName, "", "The target organization.")
-	rootCmd.MarkFlagRequired(targetOrgFlagName)
+	rootCmd.MarkPersistentFlagRequired(targetOrgFlagName)
 
 	rootCmd.PersistentFlags().String(sourceTokenFlagName, "", "The token of the source organization.")
-	rootCmd.MarkFlagRequired(sourceTokenFlagName)
+	rootCmd.MarkPersistentFlagRequired(sourceTokenFlagName)
 
 	rootCmd.PersistentFlags().String(targetTokenFlagName, "", "The token of the target organization.")
-	rootCmd.MarkFlagRequired(targetTokenFlagName)
+	rootCmd.MarkPersistentFlagRequired(targetTokenFlagName)
 
+	rootCmd.PersistentFlags().Int(maxRetriesFlagName, 5, "[OPTIONAL] The maximum number of retries for a failed operation. Default: 5")
 }

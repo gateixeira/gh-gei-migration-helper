@@ -40,7 +40,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 
 				if err != nil {
 					log.Printf("[❌] Error migrating secret scanning for repository: " + *repository.Name)
-					continue;
+					continue
 				}
 			}
 		} else {
@@ -48,7 +48,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 
 			if err != nil {
 				log.Printf("[❌] Error migrating secret scanning for repository: " + repository)
-				return;
+				return
 			}
 		}
 	},

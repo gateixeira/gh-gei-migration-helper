@@ -4,12 +4,29 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
+	"encoding/json"
 	"log"
 	"os"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
+
+type MigrationResult struct {
+	SourceOrg string `json:"sourceOrg"`
+	TargetOrg string `json:"targetOrg"`
+	Migrated  []Repo `json:"migrated"`
+	Failed    []Repo `json:"failed"`
+}
+
+type Repo struct {
+	Name           string `json:"name"`
+	ID             int64  `json:"id"`
+	Archived       bool   `json:"archived"`
+	CodeScanning   string `json:"codeScanning" default:"disabled"`
+	SecretScanning string `json:"secretScanning" default:"disabled"`
+	PushProtection string `json:"pushProtection" default:"disabled"`
+}
 
 // migrateOrgCmd represents the migrateOrg command
 var migrateOrgCmd = &cobra.Command{
@@ -36,10 +53,10 @@ var migrateOrgCmd = &cobra.Command{
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
+		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
 		log.Println("[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
-		log.Println("[✅] Done")
 
 		log.Println("[🔄] Fetching repositories from source organization")
 		sourceRepositories, err := github.GetRepositories(sourceOrg, sourceToken)
@@ -55,8 +72,6 @@ var migrateOrgCmd = &cobra.Command{
 			log.Println("[❌] Error fetching repositories from target organization")
 			os.Exit(1)
 		}
-
-		log.Println("[✅] Done")
 
 		// Remove intersection from source and destination repositories
 		m := make(map[string]bool)
@@ -74,39 +89,62 @@ var migrateOrgCmd = &cobra.Command{
 
 		log.Printf("%d repositories to migrate", len(sourceRepositoriesToMigrate))
 
-		// initialize new empty string array
-		var failedRepositories []string
+		var migratedRepos []Repo = []Repo{}
+		var failedRepos []Repo = []Repo{}
 		for i, repository := range sourceRepositoriesToMigrate {
 			log.Println("========================================")
 			log.Printf("[🔄] Migrating repository %d of %d", i+1, len(sourceRepositoriesToMigrate))
 
-			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+
+			var repoSummary = Repo{
+				Name:     *repository.Name,
+				ID:       *repository.ID,
+				Archived: *repository.Archived,
+			}
+
+			if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
+				repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
+				repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
+				repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
+			}
+
 			if err != nil {
 				log.Println("[❌] Error migrating repository: ", err)
-				failedRepositories = append(failedRepositories, *repository.Name)
+				failedRepos = append(failedRepos, repoSummary)
 				continue
 			}
+
+			migratedRepos = append(migratedRepos, repoSummary)
 		}
 
-		if len(failedRepositories) > 0 {
-			//save failed repositories to file
-			f, err := os.Create("failed-repositories.txt")
-			if err != nil {
-				log.Println("[❌] Error creating file: ", err)
-				os.Exit(1)
-			}
-			defer f.Close()
-
-			for _, repository := range failedRepositories {
-				_, err := f.WriteString(repository + "\n")
-				if err != nil {
-					log.Println("[❌] Error writing to file: ", err)
-					os.Exit(1)
-				}
-			}
-			log.Println("[❌] Failed repositories saved to file failed-repositories.txt")
-			os.Exit(1)
+		migrationResult := MigrationResult{
+			SourceOrg: sourceOrg,
+			TargetOrg: targetOrg,
+			Migrated:  migratedRepos,
+			Failed:    failedRepos,
 		}
+
+		jsonData, err := json.Marshal(migrationResult)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		f, err := os.Create("migration-result.json")
+		if err != nil {
+			log.Println(err)
+			return
+		}
+		defer f.Close()
+
+		_, err = f.Write(jsonData)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		log.Println("Migration result saved to migration-result.json")
 	},
 }
 
