@@ -7,16 +7,20 @@ import (
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 )
 
+var MaxRetries = 5
+
 type errWritter struct {
 	err error
 }
 
-func ProcessRepoMigration(repository github.Repository, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+func ProcessRepoMigration(repository github.Repository, sourceOrg string, targetOrg string, sourceToken string, targetToken string, maxRetries int) error {
 	log.Println("========================================")
 	log.Println("Repository " + *repository.Name)
 	log.Println("========================================")
 	log.Println("Archived: ", *repository.Archived)
 	log.Println("Visibility: ", *repository.Visibility)
+
+	MaxRetries = maxRetries
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		log.Println("GHAS Settings:")
@@ -209,8 +213,8 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 		return
 	}
 	log.Printf("[🔄] %s\n", stepName)
-	maxRetries := 5
-	for i := 0; i < maxRetries; i++ {
+
+	for i := 0; i < MaxRetries; i++ {
 		ew.err = f()
 		if ew.err == nil {
 			break
@@ -218,7 +222,7 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 
 		// Exponential backoff: 2^i * 100ms
 		time.Sleep(time.Duration((1<<uint(i))*1000) * time.Millisecond)
-		log.Printf("[⏳] Retrying %d/%d...", i+1, maxRetries)
+		log.Printf("[⏳] Retrying %d/%d...", i+1, MaxRetries)
 	}
 
 	if ew.err != nil {

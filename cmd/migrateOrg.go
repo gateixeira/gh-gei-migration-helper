@@ -53,6 +53,7 @@ var migrateOrgCmd = &cobra.Command{
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
+		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
 		log.Println("[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
@@ -94,7 +95,7 @@ var migrateOrgCmd = &cobra.Command{
 			log.Println("========================================")
 			log.Printf("[🔄] Migrating repository %d of %d", i+1, len(sourceRepositoriesToMigrate))
 
-			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 
 			var repoSummary = Repo{
 				Name:     *repository.Name,

@@ -37,6 +37,7 @@ var migrateRepoCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
+		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
 		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
 
@@ -45,7 +46,7 @@ var migrateRepoCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err = ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken)
+		err = ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 
 		if err != nil {
 			log.Println("[❌] Error migrating repository: " + repository)
