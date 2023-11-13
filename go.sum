@@ -5,8 +5,8 @@ github.com/cloudflare/circl v1.1.0/go.mod h1:prBCrKB9DV4poKZY1l9zBXg2QJY7mvgRvtM
 github.com/cloudflare/circl v1.3.3 h1:fE/Qz0QdIGqeWfnwq0RE0R7MI51s0M2E4Ga9kq5AEMs=
 github.com/cloudflare/circl v1.3.3/go.mod h1:5XYMA4rFBvNIrhs50XuiBJ15vF2pZn4nnUKZrLbUZFA=
 github.com/cpuguy83/go-md2man/v2 v2.0.2/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
-github.com/gofri/go-github-ratelimit v1.0.3 h1:Ocs2jaYokZDzgvqaajX+g04dqFyVqL0JQzoO7d2wmlk=
-github.com/gofri/go-github-ratelimit v1.0.3/go.mod h1:OnCi5gV+hAG/LMR7llGhU7yHt44se9sYgKPnafoL7RY=
+github.com/gofri/go-github-ratelimit v1.0.5 h1:j+AS0Jh5baasOTLkWprpuEsDSuz6bAyE/HuoGH1JrZ4=
+github.com/gofri/go-github-ratelimit v1.0.5/go.mod h1:OnCi5gV+hAG/LMR7llGhU7yHt44se9sYgKPnafoL7RY=
 github.com/golang/protobuf v1.3.1/go.mod h1:6lQm79b+lXiMfvg/cZm0SGofjICqVBUtrP5yJMmIC1U=
 github.com/golang/protobuf v1.5.0/go.mod h1:FsONVRAS9T7sI+LIUmWTfcYkHO4aIWwzhcaSAoJOfIk=
 github.com/golang/protobuf v1.5.3 h1:KhyjKVUg7Usr/dYsdSqoFveMYd5ko72D+zANwlG1mmg=
