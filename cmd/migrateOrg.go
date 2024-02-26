@@ -7,16 +7,18 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
 
 type MigrationResult struct {
-	SourceOrg string `json:"sourceOrg"`
-	TargetOrg string `json:"targetOrg"`
-	Migrated  []Repo `json:"migrated"`
-	Failed    []Repo `json:"failed"`
+	Timestamp time.Time `json:"timestamp"`
+	SourceOrg string    `json:"sourceOrg"`
+	TargetOrg string    `json:"targetOrg"`
+	Migrated  []Repo    `json:"migrated"`
+	Failed    []Repo    `json:"failed"`
 }
 
 type Repo struct {
@@ -119,6 +121,7 @@ var migrateOrgCmd = &cobra.Command{
 		}
 
 		migrationResult := MigrationResult{
+			Timestamp: time.Now().UTC(),
 			SourceOrg: sourceOrg,
 			TargetOrg: targetOrg,
 			Migrated:  migratedRepos,
