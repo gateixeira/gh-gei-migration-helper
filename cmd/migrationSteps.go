@@ -59,6 +59,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	})
 
 	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
+
 	targetWorkflows, _ := github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
 
 	if len(targetWorkflows) > 0 {
