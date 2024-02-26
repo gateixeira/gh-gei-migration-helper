@@ -408,3 +408,45 @@ func ChangeArchiveRepository(organization string, repository string, archive boo
 
 	return err
 }
+
+func CreateRepository(organization string, repository string, token string) error {
+	checkClients(token)
+
+	newRepo := &github.Repository{
+		Name: &repository,
+	}
+
+	_, _, err := clientV3.Repositories.Create(ctx, organization, newRepo)
+
+	if err != nil {
+		if err, ok := err.(*github.ErrorResponse); ok {
+			if err.Response.StatusCode == 422 {
+				//repository already exists
+				return nil
+			} else {
+				log.Println("Error creating repository: ", err)
+				return err
+			}
+		}
+	}
+
+	return err
+}
+
+func CreateIssue(organization string, repository string, title string, body string, token string) error {
+	checkClients(token)
+
+	newIssue := &github.IssueRequest{
+		Title: &title,
+		Body:  &body,
+	}
+
+	_, _, err := clientV3.Issues.Create(ctx, organization, repository, newIssue)
+
+	if err != nil {
+		log.Println("Error creating issue: ", err)
+		return err
+	}
+
+	return err
+}

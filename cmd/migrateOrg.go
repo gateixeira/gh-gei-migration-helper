@@ -57,6 +57,24 @@ var migrateOrgCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
+		statusRepoName := "migration-status"
+
+		log.Println("[🔄] Looking for ongoing/past migration")
+		repo, err := github.GetRepository(statusRepoName, targetOrg, targetToken)
+
+		if err != nil && err.Error() != "Repository not found" {
+			log.Println("[❌] Error fetching migration status repository")
+			os.Exit(1)
+		}
+
+		if err == nil && *repo.Name == statusRepoName {
+			log.Println("[❌] A migration to this organization is either ongoing or has already finished. Please check the migration status repository.")
+			os.Exit(1)
+		}
+
+		log.Println("[🔄] Creating migration status repository")
+		github.CreateRepository(targetOrg, statusRepoName, targetToken)
+
 		log.Println("[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
 
@@ -128,7 +146,7 @@ var migrateOrgCmd = &cobra.Command{
 			Failed:    failedRepos,
 		}
 
-		jsonData, err := json.Marshal(migrationResult)
+		jsonData, err := json.MarshalIndent(migrationResult, "", "  ")
 		if err != nil {
 			log.Println(err)
 			return
@@ -147,7 +165,14 @@ var migrateOrgCmd = &cobra.Command{
 			return
 		}
 
-		log.Println("Migration result saved to migration-result.json")
+		err = github.CreateIssue(targetOrg, statusRepoName, "Migration result", string(jsonData), targetToken)
+
+		if err != nil {
+			log.Println("[❌] Error creating issue with migration result. Check migration-result.json for details")
+			return
+		}
+
+		log.Printf("\nMigration result saved to migration-result.json and written to repository %s at %s", statusRepoName, targetOrg)
 	},
 }
 
