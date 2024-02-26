@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"log"
 	"time"
 
@@ -190,6 +191,12 @@ func GetRepository(repoName string, org string, token string) (Repository, error
 
 	repo, _, err := clientV3.Repositories.Get(ctx, org, repoName)
 	if err != nil {
+		if err, ok := err.(*github.ErrorResponse); ok {
+			if err.Response.StatusCode == 404 {
+				return Repository{}, errors.New("Repository not found")
+			}
+		}
+
 		log.Println("Error getting repository: ", err)
 		return Repository{}, err
 	}

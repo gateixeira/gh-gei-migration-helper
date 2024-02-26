@@ -58,7 +58,12 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return github.MigrateRepo(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 	})
 
-	newRepository, _ := github.GetRepository(*repository.Name, targetOrg, targetToken)
+	newRepository, err := github.GetRepository(*repository.Name, targetOrg, targetToken)
+
+	if err != nil {
+		log.Println("[❌] Failed to migrate repository")
+		return err
+	}
 
 	targetWorkflows, _ := github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
 
