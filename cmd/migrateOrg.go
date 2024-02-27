@@ -62,8 +62,8 @@ var migrateOrgCmd = &cobra.Command{
 		log.Println("[🔄] Looking for ongoing/past migration")
 		repo, err := github.GetRepository(statusRepoName, targetOrg, targetToken)
 
-		if err != nil && err.Error() != "Repository not found" {
-			log.Println("[❌] Error fetching migration status repository")
+		if err != nil && err.Error() != github.ErrRepositoryNotFound.Error() {
+			log.Println("[❌] Error fetching migration status repository", err)
 			os.Exit(1)
 		}
 

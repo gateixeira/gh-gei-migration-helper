@@ -32,12 +32,6 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 
 	ew := errWritter{}
 
-	if repository.SecurityAndAnalysis.AdvancedSecurity == nil || *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "disabled" {
-		ew.LogAndCallStep("Activating code scanning at source repository to check for previous analyses", func() error {
-			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
-		})
-	}
-
 	codeScanningAnalysis, _ := github.GetCodeScanningAnalysis(sourceOrg, *repository.Name, *repository.DefaultBranch, sourceToken)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
@@ -46,7 +40,13 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		})
 	}
 
-	sourceWorkflows, _ := github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
+	var sourceWorkflows []github.Workflow
+	sourceWorkflows, ew.err = github.GetAllActiveWorkflowsForRepository(sourceOrg, *repository.Name, sourceToken)
+
+	if ew.err != nil {
+		log.Println("[❌] Failed to get workflows")
+		return ew.err
+	}
 
 	if len(sourceWorkflows) > 0 {
 		ew.LogAndCallStep("Disabling workflows at source repository", func() error {
@@ -65,7 +65,13 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 		return err
 	}
 
-	targetWorkflows, _ := github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
+	var targetWorkflows []github.Workflow
+	targetWorkflows, ew.err = github.GetAllActiveWorkflowsForRepository(targetOrg, *repository.Name, targetToken)
+
+	if ew.err != nil {
+		log.Println("[❌] Failed to get workflows")
+		return ew.err
+	}
 
 	if len(targetWorkflows) > 0 {
 		//this is unfortunately necessary as the workflows get re-enabled after org migration
@@ -110,7 +116,13 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 			return github.MigrateCodeScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 		})
 
-		codeScanningAnalysis, _ := github.GetCodeScanningAnalysis(targetOrg, *repository.Name, *repository.DefaultBranch, targetToken)
+		codeScanningAnalysis, ew.err = github.GetCodeScanningAnalysis(targetOrg, *repository.Name, *repository.DefaultBranch, targetToken)
+
+		if ew.err != nil {
+			log.Println("[❌] Failed to get code scanning analysis")
+			return ew.err
+		}
+
 		log.Printf("[💡] Found %d code scanning analysis at target in default branch (%s) after migration", len(codeScanningAnalysis), *repository.DefaultBranch)
 
 		ew.LogAndCallStep("Deactivating code scanning at source", func() error {
@@ -136,6 +148,7 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 	}
 
 	if ew.err != nil {
+		log.Printf("[❌] Error: %v\n", ew.err)
 		return ew.err
 	}
 

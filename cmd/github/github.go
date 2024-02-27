@@ -12,9 +12,11 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type Repository github.Repository
+type Repository *github.Repository
 
-type Workflow github.Workflow
+type Workflow *github.Workflow
+
+type ScanningAnalysis *github.ScanningAnalysis
 
 const githubDelay = 720 * time.Millisecond
 
@@ -33,6 +35,11 @@ var (
 	clientV3    *github.Client
 	clientV4    *githubv4.Client
 	accessToken string
+)
+
+var (
+	ErrBranchProtectionDeletion = errors.New("error deleting branch protection rules")
+	ErrRepositoryNotFound       = errors.New("repository not found")
 )
 
 func checkClients(token string) error {
@@ -80,7 +87,6 @@ func DeleteBranchProtections(organization string, repository string, token strin
 	for {
 		err := clientV4.Query(ctx, &query, variables)
 		if err != nil {
-			log.Println("Error querying branch protection rules: ", err)
 			return err
 		}
 		for _, protection := range query.Repository.BranchProtectionRules.Nodes {
@@ -109,8 +115,7 @@ func DeleteBranchProtections(organization string, repository string, token strin
 		err := clientV4.Mutate(ctx, &mutate, input, nil)
 
 		if err != nil {
-			log.Println("Error deleting branch protection rule: ", err)
-			return err
+			return ErrBranchProtectionDeletion
 		}
 	}
 
@@ -129,10 +134,6 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) err
 
 	// Update the organization
 	_, _, err := clientV3.Organizations.Edit(ctx, organization, &newOrgSettings)
-
-	if err != nil {
-		log.Println("Error updating organization settings: ", err)
-	}
 
 	return err
 }
@@ -193,15 +194,14 @@ func GetRepository(repoName string, org string, token string) (Repository, error
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
-				return Repository{}, errors.New("Repository not found")
+				return nil, ErrRepositoryNotFound
 			}
 		}
 
-		log.Println("Error getting repository: ", err)
-		return Repository{}, err
+		return nil, err
 	}
 
-	return Repository(*repo), nil
+	return repo, nil
 }
 
 func GetRepositories(org string, token string) ([]Repository, error) {
@@ -214,7 +214,6 @@ func GetRepositories(org string, token string) ([]Repository, error) {
 		repos, response, err := clientV3.Repositories.ListByOrg(ctx, org, opt)
 
 		if err != nil {
-			log.Println("Error getting repositories: ", err)
 			return nil, err
 		}
 		allRepos = append(allRepos, repos...)
@@ -226,11 +225,10 @@ func GetRepositories(org string, token string) ([]Repository, error) {
 
 	var allReposStruct []Repository
 	for _, repo := range allRepos {
-		allReposStruct = append(allReposStruct, Repository(*repo))
+		allReposStruct = append(allReposStruct, repo)
 	}
 
 	return allReposStruct, nil
-
 }
 
 func ChangeRepositoryVisibility(organization string, repository string, visibility string, token string) error {
@@ -249,8 +247,6 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 			if err.Response.StatusCode == 422 {
 				// Skip if error is 422 as this is likely a false negative
 				return nil
-			} else {
-				log.Println("Error changing repository visibility: ", err)
 			}
 		}
 	}
@@ -268,7 +264,6 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
 
 		if err != nil {
-			log.Println("failed to list workflows: ", err)
 			return nil, err
 		}
 		allWorkflows = append(allWorkflows, workflows.Workflows...)
@@ -281,7 +276,7 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 	var activeWorkflowsStruct []Workflow
 	for _, workflow := range allWorkflows {
 		if *workflow.State == "active" {
-			activeWorkflowsStruct = append(activeWorkflowsStruct, Workflow(*workflow))
+			activeWorkflowsStruct = append(activeWorkflowsStruct, workflow)
 		}
 	}
 
@@ -298,13 +293,12 @@ func GetAllWorkflowsForRepository(organization string, repository string, token 
 		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
 
 		if err != nil {
-			log.Println("failed to list workflows: ", err)
 			return nil, err
 		}
 
 		for _, workflow := range workflows.Workflows {
 			// add all workflows to the list
-			allWorkflows = append(allWorkflows, Workflow(*workflow))
+			allWorkflows = append(allWorkflows, workflow)
 		}
 
 		if response.NextPage == 0 {
@@ -351,7 +345,7 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 	return nil
 }
 
-func GetCodeScanningAnalysis(organization string, repository string, defaultBranch string, token string) ([]*github.ScanningAnalysis, error) {
+func GetCodeScanningAnalysis(organization string, repository string, defaultBranch string, token string) ([]ScanningAnalysis, error) {
 	checkClients(token)
 
 	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, &github.AnalysesListOptions{Ref: &defaultBranch})
@@ -360,19 +354,23 @@ func GetCodeScanningAnalysis(organization string, repository string, defaultBran
 		//test if error code is 404
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
-				return []*github.ScanningAnalysis{}, nil
+				return nil, nil
 			} else {
-				log.Println("Error getting code scanning analysis: ", err)
-				return []*github.ScanningAnalysis{}, err
+				return nil, err
 			}
 		}
 	}
 
 	if len(analysis) == 0 {
-		return []*github.ScanningAnalysis{}, nil
+		return nil, nil
 	}
 
-	return analysis, nil
+	convertedAnalysis := make([]ScanningAnalysis, len(analysis))
+	for i, a := range analysis {
+		convertedAnalysis[i] = a
+	}
+
+	return convertedAnalysis, nil
 }
 
 func ArchiveRepository(organization string, repository string, token string) error {
@@ -399,9 +397,6 @@ func ChangeArchiveRepository(organization string, repository string, archive boo
 			if err.Response.StatusCode == 403 {
 				//repository is already archived
 				return nil
-			} else {
-				log.Println("Error archiving repository: ", err)
-				return err
 			}
 		}
 	}
@@ -423,9 +418,6 @@ func CreateRepository(organization string, repository string, token string) erro
 			if err.Response.StatusCode == 422 {
 				//repository already exists
 				return nil
-			} else {
-				log.Println("Error creating repository: ", err)
-				return err
 			}
 		}
 	}
@@ -442,11 +434,6 @@ func CreateIssue(organization string, repository string, title string, body stri
 	}
 
 	_, _, err := clientV3.Issues.Create(ctx, organization, repository, newIssue)
-
-	if err != nil {
-		log.Println("Error creating issue: ", err)
-		return err
-	}
 
 	return err
 }
