@@ -77,7 +77,7 @@ var migrateOrgCmd = &cobra.Command{
 				os.Exit(1)
 			}
 
-			log.Println("[❌] A migration to this organization is either ongoing or finished in error")
+			log.Printf("[❌] A migration to this organization is either ongoing or finished in error (remove http://github.com/%s/%s if you want to retry)", targetOrg, statusRepoName)
 			os.Exit(1)
 		}
 
