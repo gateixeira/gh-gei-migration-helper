@@ -32,6 +32,17 @@ func ProcessRepoMigration(repository github.Repository, sourceOrg string, target
 
 	ew := errWritter{}
 
+	if repository.SecurityAndAnalysis.AdvancedSecurity == nil || *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "disabled" {
+		if *repository.Archived {
+			ew.LogAndCallStep("Unarchive source repository", func() error {
+				return github.UnarchiveRepository(sourceOrg, *repository.Name, sourceToken)
+			})
+		}
+		ew.LogAndCallStep("Activating code scanning at source repository to check for previous analyses", func() error {
+			return github.ChangeGhasRepoSettings(sourceOrg, repository, "enabled", "disabled", "disabled", sourceToken)
+		})
+	}
+
 	codeScanningAnalysis, _ := github.GetCodeScanningAnalysis(sourceOrg, *repository.Name, *repository.DefaultBranch, sourceToken)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
