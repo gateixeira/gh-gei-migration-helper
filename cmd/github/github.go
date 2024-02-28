@@ -18,6 +18,8 @@ type Workflow *github.Workflow
 
 type ScanningAnalysis *github.ScanningAnalysis
 
+type Issue *github.Issue
+
 const githubDelay = 720 * time.Millisecond
 
 type BranchProtectionRule struct {
@@ -40,6 +42,7 @@ var (
 var (
 	ErrBranchProtectionDeletion = errors.New("error deleting branch protection rules")
 	ErrRepositoryNotFound       = errors.New("repository not found")
+	ErrIssueNotFound            = errors.New("issue not found")
 )
 
 func checkClients(token string) error {
@@ -436,4 +439,22 @@ func CreateIssue(organization string, repository string, title string, body stri
 	_, _, err := clientV3.Issues.Create(ctx, organization, repository, newIssue)
 
 	return err
+}
+
+func GetIssue(organization string, repository string, issueNumber int, token string) (Issue, error) {
+	checkClients(token)
+
+	issue, _, err := clientV3.Issues.Get(ctx, organization, repository, issueNumber)
+
+	if err != nil {
+		if err, ok := err.(*github.ErrorResponse); ok {
+			if err.Response.StatusCode == 404 {
+				return nil, ErrIssueNotFound
+			}
+		}
+
+		return nil, err
+	}
+
+	return issue, nil
 }

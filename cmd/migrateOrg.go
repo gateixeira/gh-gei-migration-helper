@@ -68,7 +68,7 @@ var migrateOrgCmd = &cobra.Command{
 		}
 
 		if err == nil && *repo.Name == statusRepoName {
-			log.Println("[❌] A migration to this organization is either ongoing or has already finished. Please check the migration status repository.")
+			log.Println("[❌] A migration to this organization is either ongoing or has finished. Please check the migration status repository.")
 			os.Exit(1)
 		}
 
@@ -172,7 +172,7 @@ var migrateOrgCmd = &cobra.Command{
 			return
 		}
 
-		log.Printf("\nMigration result saved to migration-result.json and written to repository %s at %s", statusRepoName, targetOrg)
+		log.Printf("\nMigration result saved to migration-result.json and written to http://github.com/%s/%s/issues/1", targetOrg, statusRepoName)
 	},
 }
 
