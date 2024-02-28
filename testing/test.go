@@ -3,10 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
-    "os"
 
-	"github.com/google/go-github/v55/github"
+	"github.com/google/go-github/v59/github"
 	"golang.org/x/oauth2"
 )
 
@@ -18,18 +18,18 @@ type RepoConfig struct {
 
 func disableGHAS(ctx context.Context, client *github.Client, config RepoConfig) *github.Repository {
 	fmt.Println("Disabling GHAS code scanning")
-    repo := setCodeScanningState(ctx, client, config, "disabled")
-    return repo
+	repo := setCodeScanningState(ctx, client, config, "disabled")
+	return repo
 }
 
 func enableCodeScanning(ctx context.Context, client *github.Client, config RepoConfig) *github.Repository {
-    fmt.Println("Enabling GHAS code scanning")
-    repo := setCodeScanningState(ctx, client, config, "enabled")
-    return repo
+	fmt.Println("Enabling GHAS code scanning")
+	repo := setCodeScanningState(ctx, client, config, "enabled")
+	return repo
 }
 
 func setCodeScanningState(ctx context.Context, client *github.Client, config RepoConfig, state string) *github.Repository {
-    disabled := "disabled"
+	disabled := "disabled"
 
 	payload := &github.SecurityAndAnalysis{
 		AdvancedSecurity: &github.AdvancedSecurity{
@@ -55,7 +55,7 @@ func setCodeScanningState(ctx context.Context, client *github.Client, config Rep
 	}
 	fmt.Println("HTTP status for request: ", resp.Status)
 
-    return repo
+	return repo
 }
 
 func listCodeScanningAnalyses(ctx context.Context, client *github.Client, config RepoConfig) {
@@ -73,22 +73,22 @@ func listCodeScanningAnalyses(ctx context.Context, client *github.Client, config
 }
 
 func fetchRepository(ctx context.Context, client *github.Client, config RepoConfig) *github.Repository {
-    repo, _, err := client.Repositories.Get(ctx, config.org, config.repo)
+	repo, _, err := client.Repositories.Get(ctx, config.org, config.repo)
 	if err != nil {
-        fmt.Println("Error fetching repository")
+		fmt.Println("Error fetching repository")
 		fmt.Println(err)
-        return nil
+		return nil
 	}
 
 	fmt.Println("Repository: ", *repo.Name)
 	fmt.Println("  is archived?   ", *repo.Archived)
 	fmt.Println("  GHAS enabled?  ", *repo.SecurityAndAnalysis.AdvancedSecurity.Status)
 
-    return repo
+	return repo
 }
 
 func main() {
-    config := new(RepoConfig)
+	config := new(RepoConfig)
 	config.org = "octodemo"
 	config.repo = "pm-bs-testing-8001"
 	config.token = os.Getenv("GH_TEST_TOKEN")
@@ -103,9 +103,9 @@ func main() {
 	// Check the repository settings that we are starting out with
 	repo := fetchRepository(ctx, client, *config)
 
-    if (repo == nil) {
-        return;
-    }
+	if repo == nil {
+		return
+	}
 
 	if repo.SecurityAndAnalysis.AdvancedSecurity.Status == nil || *repo.SecurityAndAnalysis.AdvancedSecurity.Status == "enabled" {
 		// Switch to disabled
@@ -116,14 +116,14 @@ func main() {
 		time.Sleep(10 * time.Second)
 	}
 
-    // This should fail to list
-    listCodeScanningAnalyses(ctx, client, *config)
+	// This should fail to list
+	listCodeScanningAnalyses(ctx, client, *config)
 
-    // Re-enable GHAS code scanning
-    enableCodeScanning(ctx, client, *config)
-    time.Sleep(10 * time.Second) // Arbitary wait to ensure that things flush through
-    fmt.Println("-----------------------------------------------------")
-    fmt.Println("Checking repository GHAS settings")
-    fetchRepository(ctx, client, *config)
-    listCodeScanningAnalyses(ctx, client, *config)
+	// Re-enable GHAS code scanning
+	enableCodeScanning(ctx, client, *config)
+	time.Sleep(10 * time.Second) // Arbitary wait to ensure that things flush through
+	fmt.Println("-----------------------------------------------------")
+	fmt.Println("Checking repository GHAS settings")
+	fetchRepository(ctx, client, *config)
+	listCodeScanningAnalyses(ctx, client, *config)
 }

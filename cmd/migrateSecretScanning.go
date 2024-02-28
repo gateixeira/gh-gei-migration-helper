@@ -21,6 +21,8 @@ var migrateSecretScanningCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
+		log.Printf("Migrating secret scanning for repository %s from %s to %s", repository, sourceOrg, targetOrg)
+
 		if repository == "" {
 			log.Println("\n[🔄] Fetching repositories from source organization")
 			repositories, err := github.GetRepositories(sourceOrg, sourceToken)

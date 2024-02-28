@@ -66,7 +66,11 @@ Read all repositories from source organization and for each repository:
 
 ### `migrate-organization`
 
-This script can be used to migrate all repositories in an organization
+This script can be used to migrate all repositories in an organization.
+
+It first looks for a repository called `migration-status` in the target org. If it exists, it means a migration is already in progress or finished in error and no new migration will be started, returning an error message.
+
+If a migration finished only partially successful, you can delete the `migration-status` repository and run the migration again.
 
 #### Usage
 
@@ -105,3 +109,20 @@ Omit the repository flag to run against the whole organization.
 ```
 $ gh gh-gei-migration-helper reactivate-target-workflow --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
 ```
+
+### `migration-status`
+
+Check progress of the migration. This is based on the existance of a `migration-status` repository at target and a single issue inside of it, which is created when a migration finishes to provide an overview.
+
+- If the repository does not exist, a migration was not started
+- If repository exists but without the issue, a migration is in progress or finished in error
+- If the repository exists with the issue, a migration was finished
+
+To retry a migration on the repositories that have not been migrated, delete the `migration-status` repository and run the migration again.
+
+#### Usage
+
+```
+$ gh gh-gei-migration-helper migration-status --source-org <source_org> --target-org <target_org> --source-token <source_token> --target-token <target_token>
+```
+

@@ -7,16 +7,18 @@ import (
 	"encoding/json"
 	"log"
 	"os"
+	"time"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
 )
 
 type MigrationResult struct {
-	SourceOrg string `json:"sourceOrg"`
-	TargetOrg string `json:"targetOrg"`
-	Migrated  []Repo `json:"migrated"`
-	Failed    []Repo `json:"failed"`
+	Timestamp time.Time `json:"timestamp"`
+	SourceOrg string    `json:"sourceOrg"`
+	TargetOrg string    `json:"targetOrg"`
+	Migrated  []Repo    `json:"migrated"`
+	Failed    []Repo    `json:"failed"`
 }
 
 type Repo struct {
@@ -54,6 +56,33 @@ var migrateOrgCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
+
+		log.Printf("Migrating repositories from %s to %s", sourceOrg, targetOrg)
+
+		statusRepoName := "migration-status"
+
+		log.Println("[🔄] Looking for ongoing/past migration")
+		repo, err := github.GetRepository(statusRepoName, targetOrg, targetToken)
+
+		if err != nil && err.Error() != github.ErrRepositoryNotFound.Error() {
+			log.Println("[❌] Error fetching migration status repository", err)
+			os.Exit(1)
+		}
+
+		if err == nil && *repo.Name == statusRepoName {
+			issue, _ := github.GetIssue(targetOrg, statusRepoName, 1, targetToken)
+
+			if issue != nil {
+				log.Printf("[❌] A migration to this organization was already executed. Please check http://github.com/%s/%s/issues/1 for status", targetOrg, statusRepoName)
+				os.Exit(1)
+			}
+
+			log.Printf("[❌] A migration to this organization is either ongoing or finished in error (remove http://github.com/%s/%s if you want to retry)", targetOrg, statusRepoName)
+			os.Exit(1)
+		}
+
+		log.Println("[🔄] Creating migration status repository")
+		github.CreateRepository(targetOrg, statusRepoName, targetToken)
 
 		log.Println("[🔄] Deactivating GHAS settings at target organization")
 		github.ChangeGHASOrgSettings(targetOrg, false, targetToken)
@@ -119,13 +148,14 @@ var migrateOrgCmd = &cobra.Command{
 		}
 
 		migrationResult := MigrationResult{
+			Timestamp: time.Now().UTC(),
 			SourceOrg: sourceOrg,
 			TargetOrg: targetOrg,
 			Migrated:  migratedRepos,
 			Failed:    failedRepos,
 		}
 
-		jsonData, err := json.Marshal(migrationResult)
+		jsonData, err := json.MarshalIndent(migrationResult, "", "  ")
 		if err != nil {
 			log.Println(err)
 			return
@@ -144,7 +174,14 @@ var migrateOrgCmd = &cobra.Command{
 			return
 		}
 
-		log.Println("Migration result saved to migration-result.json")
+		err = github.CreateIssue(targetOrg, statusRepoName, "Migration result", string(jsonData), targetToken)
+
+		if err != nil {
+			log.Println("[❌] Error creating issue with migration result. Check migration-result.json for details")
+			return
+		}
+
+		log.Printf("\nMigration result saved to migration-result.json and written to http://github.com/%s/%s/issues/1", targetOrg, statusRepoName)
 	},
 }
 
