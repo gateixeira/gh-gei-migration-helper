@@ -57,6 +57,8 @@ var migrateOrgCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
+		log.Printf("Migrating repositories from %s to %s", sourceOrg, targetOrg)
+
 		statusRepoName := "migration-status"
 
 		log.Println("[🔄] Looking for ongoing/past migration")
@@ -68,7 +70,14 @@ var migrateOrgCmd = &cobra.Command{
 		}
 
 		if err == nil && *repo.Name == statusRepoName {
-			log.Println("[❌] A migration to this organization is either ongoing or has finished. Please check the migration status repository.")
+			issue, _ := github.GetIssue(targetOrg, statusRepoName, 1, targetToken)
+
+			if issue != nil {
+				log.Printf("[❌] A migration to this organization was already executed. Please check http://github.com/%s/%s/issues/1 for status", targetOrg, statusRepoName)
+				os.Exit(1)
+			}
+
+			log.Println("[❌] A migration to this organization is either ongoing or finished in error")
 			os.Exit(1)
 		}
 
