@@ -85,6 +85,12 @@ var migrationStatusCmd = &cobra.Command{
 				toMigrate = append(toMigrate, *repo.Name)
 			}
 		}
+
+		if len(toMigrate) == 0 {
+			log.Println("[✅] No repositories to migrate. Finishing the last repository migration")
+			os.Exit(0)
+		}
+
 		log.Println(strings.Join(toMigrate, ", "))
 	},
 }
