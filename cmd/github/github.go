@@ -20,8 +20,6 @@ type ScanningAnalysis *github.ScanningAnalysis
 
 type Issue *github.Issue
 
-const githubDelay = 720 * time.Millisecond
-
 type BranchProtectionRule struct {
 	Nodes []struct {
 		Id string
@@ -46,10 +44,6 @@ var (
 )
 
 func checkClients(token string) error {
-
-	// Sleep to avoid hitting the rate limit. Not ideal but a valid trade-off as the migration step in GEI consumes the majority of the time
-	time.Sleep(githubDelay)
-
 	if clientV3 == nil || clientV4 == nil || token != accessToken {
 		accessToken = token
 		ctx = context.Background()
