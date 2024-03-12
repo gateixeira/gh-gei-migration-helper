@@ -4,7 +4,9 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
+	"os"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
@@ -21,18 +23,18 @@ var migrateSecretScanningCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		log.Printf("Migrating secret scanning for repository %s from %s to %s", repository, sourceOrg, targetOrg)
+		slog.Info(fmt.Sprintf("migrating secret scanning for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
 		if repository == "" {
-			log.Println("\n[🔄] Fetching repositories from source organization")
+			slog.Info("fetching repositories from source organization")
 			repositories, err := github.GetRepositories(sourceOrg, sourceToken)
 
 			if err != nil {
-				log.Println("[❌] Error fetching repositories from source organization")
-				return
+				slog.Error("error fetching repositories from source organization")
+				os.Exit(1)
 			}
 
-			log.Println("[✅] Done")
+			slog.Info("done")
 
 			for _, repository := range repositories {
 				if *repository.Name == ".github" {
@@ -41,7 +43,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 				err := CheckAndMigrateSecretScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 
 				if err != nil {
-					log.Printf("[❌] Error migrating secret scanning for repository: " + *repository.Name)
+					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
 					continue
 				}
 			}
@@ -49,8 +51,8 @@ var migrateSecretScanningCmd = &cobra.Command{
 			err := CheckAndMigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 
 			if err != nil {
-				log.Printf("[❌] Error migrating secret scanning for repository: " + repository)
-				return
+				slog.Error("error migrating secret scanning for repository: " + repository)
+				os.Exit(1)
 			}
 		}
 	},

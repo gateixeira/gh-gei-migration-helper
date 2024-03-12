@@ -3,7 +3,8 @@ package github
 import (
 	"context"
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/gofri/go-github-ratelimit/github_ratelimit"
@@ -171,7 +172,7 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 	// Update the repository
 	_, response, err := clientV3.Repositories.Edit(ctx, organization, *repository.Name, &newRepoSettings)
 
-	log.Println("[⌛] Waiting 10 seconds for changes to apply...")
+	slog.Debug("waiting 10 seconds for changes to apply...")
 	time.Sleep(10 * time.Second)
 
 	if err != nil {
@@ -315,7 +316,7 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 		_, err := clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
 
 		if _, ok := err.(*github.ErrorResponse); ok {
-			log.Println("Failed to disable workflow: ", workflow.Name, " - will not stop migration")
+			slog.Debug(fmt.Sprint("failed to disable workflow: ", workflow.Name, " - will not stop migration"))
 			return nil
 		}
 	}
