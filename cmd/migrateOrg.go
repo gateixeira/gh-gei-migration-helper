@@ -30,6 +30,11 @@ type Repo struct {
 	PushProtection string `json:"pushProtection" default:"disabled"`
 }
 
+type WorkerError struct {
+	Err  error
+	Repo github.Repository
+}
+
 // migrateOrgCmd represents the migrateOrg command
 var migrateOrgCmd = &cobra.Command{
 	Use:   "migrate-organization",
@@ -51,7 +56,6 @@ var migrateOrgCmd = &cobra.Command{
 	- 7. Activate GHAS settings at target`,
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// log initial timestamp
 		initial := time.Now()
 
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
@@ -105,7 +109,6 @@ var migrateOrgCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		// Remove intersection from source and destination repositories
 		m := make(map[string]bool)
 		for _, item := range destinationRepositories {
 			m[*item.Name] = true
@@ -121,41 +124,65 @@ var migrateOrgCmd = &cobra.Command{
 
 		log.Printf("%d repositories to migrate", len(sourceRepositoriesToMigrate))
 
-		var migratedRepos []Repo = []Repo{}
-		var failedRepos []Repo = []Repo{}
-		for i, repository := range sourceRepositoriesToMigrate {
-			log.Println("========================================")
-			log.Printf("[🔄] Migrating repository %d of %d", i+1, len(sourceRepositoriesToMigrate))
+		jobs := make(chan github.Repository, len(sourceRepositoriesToMigrate))
+		results := make(chan WorkerError, len(sourceRepositoriesToMigrate))
 
-			err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+		for w := 1; w <= 5; w++ {
+			go func(id int, jobs <-chan github.Repository, results chan<- WorkerError) {
+				for repository := range jobs {
+					log.Println("========================================")
+					log.Printf("[🔄] Migrating repository %s", *repository.Name)
 
-			var repoSummary = Repo{
-				Name:     *repository.Name,
-				ID:       *repository.ID,
-				Archived: *repository.Archived,
+					var repoSummary = Repo{
+						Name:     *repository.Name,
+						ID:       *repository.ID,
+						Archived: *repository.Archived,
+					}
+
+					if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
+						repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
+						repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
+						repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
+					}
+
+					err := ProcessRepoMigration(repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+					results <- WorkerError{Err: err, Repo: repository}
+
+					if err != nil {
+						log.Println("[❌] Error migrating repository: ", err)
+					}
+				}
+			}(w, jobs, results)
+		}
+
+		for _, repository := range sourceRepositoriesToMigrate {
+			jobs <- repository
+		}
+		close(jobs)
+
+		var failed []Repo
+		var migrated []Repo
+		for a := 1; a <= len(sourceRepositoriesToMigrate); a++ {
+			workerResult := <-results
+			if workerResult.Err != nil {
+				failed = append(failed, Repo{
+					Name: *workerResult.Repo.Name,
+					ID:   *workerResult.Repo.ID,
+				})
+			} else {
+				migrated = append(migrated, Repo{
+					Name: *workerResult.Repo.Name,
+					ID:   *workerResult.Repo.ID,
+				})
 			}
-
-			if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
-				repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
-				repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
-				repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
-			}
-
-			if err != nil {
-				log.Println("[❌] Error migrating repository: ", err)
-				failedRepos = append(failedRepos, repoSummary)
-				continue
-			}
-
-			migratedRepos = append(migratedRepos, repoSummary)
 		}
 
 		migrationResult := MigrationResult{
 			Timestamp: time.Now().UTC(),
 			SourceOrg: sourceOrg,
 			TargetOrg: targetOrg,
-			Migrated:  migratedRepos,
-			Failed:    failedRepos,
+			Migrated:  migrated,
+			Failed:    failed,
 		}
 
 		jsonData, err := json.MarshalIndent(migrationResult, "", "  ")
