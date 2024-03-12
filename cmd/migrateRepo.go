@@ -4,7 +4,8 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
@@ -39,19 +40,19 @@ var migrateRepoCmd = &cobra.Command{
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
 
-		log.Printf("Migrating repository %s from %s to %s", repository, sourceOrg, targetOrg)
+		slog.Info(fmt.Sprintf("migrating repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
 		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
 
 		if err != nil {
-			log.Println("[❌] Error getting source repository: " + repository)
+			slog.Info("error getting source repository: " + repository)
 			os.Exit(1)
 		}
 
 		err = ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 
 		if err != nil {
-			log.Println("[❌] Error migrating repository: " + repository)
+			slog.Error("error migrating repository: " + repository)
 			os.Exit(1)
 		}
 	},

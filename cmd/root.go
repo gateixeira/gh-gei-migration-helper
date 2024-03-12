@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const VERSION = "0.1.2"
+const VERSION = "1.1.0"
 
 const (
 	sourceOrgFlagName   = "source-org"
@@ -22,6 +22,8 @@ const (
 
 //go:embed banner.txt
 var banner []byte
+
+var enableDebug bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -36,20 +38,17 @@ var rootCmd = &cobra.Command{
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	err := rootCmd.Execute()
+
 	if err != nil {
 		os.Exit(1)
 	}
 }
 
 func init() {
-	rootCmd.SetOut(os.Stdout)
-	rootCmd.SetErr(os.Stderr)
-	rootCmd.Version = VERSION
-	rootCmd.Println("\n\n" + string(banner) + "\n\n")
-
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
+	rootCmd.PersistentFlags().BoolVar(&enableDebug, "debug", os.Getenv("DEBUG") == "true", "Enable debug mode")
 
 	rootCmd.PersistentFlags().String(sourceOrgFlagName, "", "The source organization.")
 	rootCmd.MarkPersistentFlagRequired(sourceOrgFlagName)

@@ -4,7 +4,8 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -21,35 +22,35 @@ var migrationStatusCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
-		log.Printf("Checking migration status from %s to %s", sourceOrg, targetOrg)
+		slog.Info(fmt.Sprintf("checking migration status from %s to %s", sourceOrg, targetOrg))
 
 		statusRepoName := "migration-status"
 
 		migrationRepository, _ := github.GetRepository(statusRepoName, targetOrg, targetToken)
 
 		if migrationRepository == nil {
-			log.Println("[❌] There is no migration-status repository in the target organization, likely the migration has not been started")
+			slog.Info("there is no migration-status repository in the target organization, likely the migration has not been started")
 			os.Exit(0)
 		}
 
 		migrationIssue, _ := github.GetIssue(targetOrg, statusRepoName, 1, targetToken)
 
 		if migrationIssue != nil {
-			log.Printf("[✅] Migration finished. Check https://github.com/%s/%s/issues/1 for details", targetOrg, statusRepoName)
+			slog.Info(fmt.Sprintf("migration finished. Check https://github.com/%s/%s/issues/1 for details", targetOrg, statusRepoName))
 			os.Exit(0)
 		}
 
 		sourceRepositories, err := github.GetRepositories(sourceOrg, sourceToken)
 
 		if err != nil {
-			log.Println("[❌] Error fetching repositories from source organization")
+			slog.Error("error fetching repositories from source organization")
 			os.Exit(1)
 		}
 
 		destinationRepositories, err := github.GetRepositories(targetOrg, targetToken)
 
 		if err != nil {
-			log.Println("[❌] Error fetching repositories from target organization")
+			slog.Error("error fetching repositories from target organization")
 			os.Exit(1)
 		}
 
@@ -65,19 +66,19 @@ var migrationStatusCmd = &cobra.Command{
 			}
 		}
 
-		log.Println("=========================================================")
-		log.Printf("[🔄] A migration is ongoing from %s to %s (or finished in error)", sourceOrg, targetOrg)
-		log.Println("=========================================================")
-		log.Printf("[ℹ️] %d/%d repositories are migrated", len(intersection), len(sourceRepositories))
-		log.Println("=========================================================")
-		log.Println("[✅] Migrated repositories:")
+		slog.Info("=========================================================")
+		slog.Info("a migration is ongoing from %s to %s (or finished in error)", sourceOrg, targetOrg)
+		slog.Info("=========================================================")
+		slog.Info(fmt.Sprintf("%d/%d repositories are migrated", len(intersection), len(sourceRepositories)))
+		slog.Info("=========================================================")
+		slog.Info("migrated repositories:")
 		var migrated []string
 		for repo := range intersection {
 			migrated = append(migrated, repo)
 		}
-		log.Println(strings.Join(migrated, ", "))
-		log.Println("=========================================================")
-		log.Println("[🔄] Repositories to be migrated:")
+		slog.Info(strings.Join(migrated, ", "))
+		slog.Info("=========================================================")
+		slog.Info("repositories to be migrated:")
 
 		var toMigrate []string
 		for _, repo := range sourceRepositories {
@@ -87,11 +88,11 @@ var migrationStatusCmd = &cobra.Command{
 		}
 
 		if len(toMigrate) == 0 {
-			log.Println("[✅] No repositories to migrate. Finishing the last repository migration")
+			slog.Info("no repositories to migrate. Finishing the last repository migration")
 			os.Exit(0)
 		}
 
-		log.Println(strings.Join(toMigrate, ", "))
+		slog.Info(strings.Join(toMigrate, ", "))
 	},
 }
 

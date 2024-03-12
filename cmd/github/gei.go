@@ -2,7 +2,8 @@ package github
 
 import (
 	"errors"
-	"log"
+	"fmt"
+	"log/slog"
 	"math"
 	"os/exec"
 	"time"
@@ -16,7 +17,7 @@ func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, 
 	err := cmd.Run()
 
 	if err != nil {
-		log.Println("failed to migrate code scanning alerts: ", err)
+		slog.Error("failed to migrate code scanning alerts: ", err)
 		return err
 	}
 
@@ -29,7 +30,7 @@ func MigrateSecretScanning(repository string, sourceOrg string, targetOrg string
 	err := cmd.Run()
 
 	if err != nil {
-		log.Println("failed to migrate secret scanning remediations: ", err)
+		slog.Error("failed to migrate secret scanning remediations: ", err)
 		return err
 	}
 
@@ -44,7 +45,7 @@ func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceTo
 	err := cmd.Run()
 
 	if err != nil {
-		log.Println("failed to migrate repository: ", err)
+		slog.Error("failed to migrate repository: ", err)
 		return err
 	}
 
@@ -54,7 +55,7 @@ func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceTo
 	})
 
 	if err != nil {
-		log.Println("failed to migrate repository: ", err)
+		slog.Error("failed to migrate repository: ", err)
 		return err
 	}
 
@@ -67,7 +68,7 @@ func exponentialBackoff(fn func() (Repository, error)) error {
 		if err == nil {
 			return nil
 		} else {
-			log.Println("[⏳] retrying in", math.Pow(2, float64(i)), "seconds")
+			slog.Debug(fmt.Sprint("retrying in", math.Pow(2, float64(i)), "seconds"))
 		}
 		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
 	}

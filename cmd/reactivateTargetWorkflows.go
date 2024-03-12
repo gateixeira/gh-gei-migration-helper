@@ -4,7 +4,8 @@ Package cmd provides a command-line interface for changing GHAS settings for a g
 package cmd
 
 import (
-	"log"
+	"fmt"
+	"log/slog"
 
 	"github.com/gateixeira/gei-migration-helper/cmd/github"
 	"github.com/spf13/cobra"
@@ -21,18 +22,18 @@ var reactivateTargetWorkflowsCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		log.Printf("Reactivating target workflows for repository %s from %s to %s", repository, sourceOrg, targetOrg)
+		slog.Info(fmt.Sprintf("reactivating target workflows for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
 		if repository == "" {
-			log.Println("\n[🔄] Fetching repositories from source organization")
+			slog.Info("fetching repositories from source organization")
 			repositories, err := github.GetRepositories(sourceOrg, sourceToken)
 
 			if err != nil {
-				log.Println("[❌] Error fetching repositories from source organization")
+				slog.Error("error fetching repositories from source organization")
 				return
 			}
 
-			log.Println("[✅] Done")
+			slog.Info("done")
 
 			for _, repository := range repositories {
 				if *repository.Name == ".github" {
@@ -42,7 +43,7 @@ var reactivateTargetWorkflowsCmd = &cobra.Command{
 				err := ReactivateTargetWorkflows(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 
 				if err != nil {
-					log.Printf("[❌] Error migrating secret scanning for repository: " + *repository.Name)
+					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
 					continue
 				}
 			}
