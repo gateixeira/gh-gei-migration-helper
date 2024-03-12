@@ -51,6 +51,9 @@ var migrateOrgCmd = &cobra.Command{
 	- 7. Activate GHAS settings at target`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		// log initial timestamp
+		initial := time.Now()
+
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
@@ -182,6 +185,8 @@ var migrateOrgCmd = &cobra.Command{
 		}
 
 		log.Printf("\nMigration result saved to migration-result.json and written to http://github.com/%s/%s/issues/1", targetOrg, statusRepoName)
+
+		log.Printf("\nMigration took %s", time.Since(initial))
 	},
 }
 
