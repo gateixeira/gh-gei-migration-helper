@@ -5,6 +5,7 @@ package cmd
 
 import (
 	_ "embed"
+	"log/slog"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -25,10 +26,26 @@ var banner []byte
 
 var enableDebug bool
 
+func initLogger(cmd *cobra.Command, args []string) {
+	lvl := new(slog.LevelVar)
+
+	if enableDebug {
+		lvl.Set(slog.LevelDebug)
+	} else {
+		lvl.Set(slog.LevelInfo)
+	}
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
+		Level: lvl,
+	}))
+	slog.SetDefault(logger)
+}
+
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "gei-migration-helper",
-	Short: "Wrapper application to the GEI extension that orchestrates steps necessary to migrate reposistories and GHAS features",
+	Use:              "gei-migration-helper",
+	PersistentPreRun: initLogger,
+	Short:            "Wrapper application to the GEI extension that orchestrates steps necessary to migrate reposistories and GHAS features",
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
