@@ -244,7 +244,7 @@ func (ew *errWritter) LogAndCallStep(stepName string, f func() error) {
 	if ew.err != nil {
 		return
 	}
-	logger.Debug(fmt.Sprintf("%s", stepName))
+	logger.Debug(stepName)
 
 	for i := 0; i < MaxRetries; i++ {
 		ew.err = f()
