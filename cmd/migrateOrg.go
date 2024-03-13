@@ -66,6 +66,7 @@ var migrateOrgCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		maxRetries, _ := cmd.Flags().GetInt(maxRetriesFlagName)
+		workers, _ := cmd.Flags().GetInt(workersFlagName)
 
 		slog.Info("migrating repositories", "source", sourceOrg, "destination", targetOrg)
 
@@ -130,7 +131,7 @@ var migrateOrgCmd = &cobra.Command{
 		jobs := make(chan github.Repository, len(sourceRepositoriesToMigrate))
 		results := make(chan WorkerError, len(sourceRepositoriesToMigrate))
 
-		for w := 1; w <= 5; w++ {
+		for w := 1; w <= workers; w++ {
 			go func(id int, jobs <-chan github.Repository, results chan<- WorkerError) {
 				for repository := range jobs {
 					slog.Debug("worker started", "job", strconv.Itoa(id), "repository", *repository.Name)

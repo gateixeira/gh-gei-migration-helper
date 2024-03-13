@@ -19,6 +19,7 @@ const (
 	sourceTokenFlagName = "source-token"
 	targetTokenFlagName = "target-token"
 	maxRetriesFlagName  = "max-retries"
+	workersFlagName     = "workers"
 )
 
 //go:embed banner.txt
@@ -85,4 +86,5 @@ func init() {
 	rootCmd.MarkPersistentFlagRequired(targetTokenFlagName)
 
 	rootCmd.PersistentFlags().Int(maxRetriesFlagName, 5, "[OPTIONAL] The maximum number of retries for a failed operation. Default: 5")
+	rootCmd.PersistentFlags().Int(workersFlagName, 5, "[OPTIONAL] The number of workers to use for parallel operations. Default: 5")
 }
