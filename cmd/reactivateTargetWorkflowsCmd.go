@@ -6,16 +6,16 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
-	"os"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/github"
+	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
 
 // migrateRepoCmd represents the migrateRepo command
-var migrateSecretScanningCmd = &cobra.Command{
-	Use:   "migrate-secret-scanning",
-	Short: "Migrate secret scanning remediations for a repository",
+var reactivateTargetWorkflowsCmd = &cobra.Command{
+	Use:   "reactivate-target-workflows",
+	Short: "Reactivate workflows for a migrated repository based on source",
 	Run: func(cmd *cobra.Command, args []string) {
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
@@ -23,7 +23,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 		repository, _ := cmd.Flags().GetString(repositoryFlagName)
 
-		slog.Info(fmt.Sprintf("migrating secret scanning for repository %s from %s to %s", repository, sourceOrg, targetOrg))
+		slog.Info(fmt.Sprintf("reactivating target workflows for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
 		if repository == "" {
 			slog.Info("fetching repositories from source organization")
@@ -31,7 +31,7 @@ var migrateSecretScanningCmd = &cobra.Command{
 
 			if err != nil {
 				slog.Error("error fetching repositories from source organization")
-				os.Exit(1)
+				return
 			}
 
 			slog.Info("done")
@@ -40,7 +40,8 @@ var migrateSecretScanningCmd = &cobra.Command{
 				if *repository.Name == ".github" {
 					continue
 				}
-				err := CheckAndMigrateSecretScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
+
+				err := migration.ReactivateTargetWorkflows(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
 
 				if err != nil {
 					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
@@ -48,18 +49,13 @@ var migrateSecretScanningCmd = &cobra.Command{
 				}
 			}
 		} else {
-			err := CheckAndMigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-
-			if err != nil {
-				slog.Error("error migrating secret scanning for repository: " + repository)
-				os.Exit(1)
-			}
+			migration.ReactivateTargetWorkflows(repository, sourceOrg, targetOrg, sourceToken, targetToken)
 		}
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(migrateSecretScanningCmd)
+	rootCmd.AddCommand(reactivateTargetWorkflowsCmd)
 
-	migrateSecretScanningCmd.Flags().String(repositoryFlagName, "", "The repository to migrate. If not provided, Secret Scanning will be migrated for all repositories in the organization.")
+	reactivateTargetWorkflowsCmd.Flags().String(repositoryFlagName, "", "The repository to reactivate. If not provided, reactivation will be done for all repositories in the organization.")
 }

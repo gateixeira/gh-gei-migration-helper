@@ -9,7 +9,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/github"
 	"github.com/spf13/cobra"
 )
 

@@ -1,6 +1,6 @@
 module github.com/gateixeira/gei-migration-helper
 
-go 1.20
+go 1.21
 
 require (
 	github.com/gofri/go-github-ratelimit v1.1.0

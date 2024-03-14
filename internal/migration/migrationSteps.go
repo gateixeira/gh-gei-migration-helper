@@ -1,4 +1,4 @@
-package cmd
+package migration
 
 import (
 	"fmt"
@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/github"
 )
 
 var MaxRetries = 5

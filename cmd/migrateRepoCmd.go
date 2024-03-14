@@ -8,7 +8,8 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/github"
+	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
 
@@ -49,7 +50,7 @@ var migrateRepoCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err = ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+		err = migration.ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 
 		if err != nil {
 			slog.Error("error migrating repository: " + repository)
