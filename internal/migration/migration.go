@@ -5,14 +5,14 @@ import (
 )
 
 type MigrationResult struct {
-	Timestamp time.Time `json:"timestamp"`
-	SourceOrg string    `json:"sourceOrg"`
-	TargetOrg string    `json:"targetOrg"`
-	Migrated  []repo    `json:"migrated"`
-	Failed    []repo    `json:"failed"`
+	Timestamp time.Time    `json:"timestamp"`
+	SourceOrg string       `json:"sourceOrg"`
+	TargetOrg string       `json:"targetOrg"`
+	Migrated  []repoStatus `json:"migrated"`
+	Failed    []repoStatus `json:"failed"`
 }
 
-type repo struct {
+type repoStatus struct {
 	Name           string `json:"name"`
 	ID             int64  `json:"id"`
 	Archived       bool   `json:"archived"`
@@ -21,6 +21,6 @@ type repo struct {
 	PushProtection string `json:"pushProtection" default:"disabled"`
 }
 
-type migration interface {
-	migrate() error
+type Migration interface {
+	Migrate() (MigrationResult, error)
 }

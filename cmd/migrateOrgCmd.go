@@ -73,7 +73,7 @@ var migrateOrgCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		slog.Info("migration result saved to migration-result.json and written to: " + fmt.Sprintf("https://github.com/%s/%s/issues/1", targetOrg, statusRepoName))
+		slog.Info("migration result saved to migration-result.json")
 
 		slog.Info(fmt.Sprintf("migration took %s", time.Since(initial)))
 	},

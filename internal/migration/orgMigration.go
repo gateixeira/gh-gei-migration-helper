@@ -1,14 +1,15 @@
 package migration
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"strconv"
 	"time"
 
 	"github.com/gateixeira/gei-migration-helper/internal/github"
+	"github.com/gateixeira/gei-migration-helper/pkg/worker"
 )
 
 type OrgMigration struct {
@@ -16,11 +17,6 @@ type OrgMigration struct {
 	sourceToken, targetToken string
 	maxRetries               int
 	parallelMigrations       int
-}
-
-type workerError struct {
-	err  error
-	repo github.Repository
 }
 
 const statusRepoName = "migration-status"
@@ -57,13 +53,50 @@ func (om OrgMigration) checkOngoing() error {
 	return nil
 }
 
-func (om OrgMigration) Migrate() (MigrationResult, error) {
+func (om OrgMigration) prepareMigration() error {
 	if err := om.checkOngoing(); err != nil {
-		return MigrationResult{}, err
+		return err
 	}
 
 	slog.Info("deactivating GHAS settings at target organization")
 	github.ChangeGHASOrgSettings(om.target, false, om.targetToken)
+
+	return nil
+}
+
+func (om OrgMigration) Process(repo interface{}, ctx context.Context) error {
+	repository, ok := repo.(github.Repository)
+	if !ok {
+		return fmt.Errorf("could not cast repository to github.Repository")
+	}
+
+	var repoSummary = repoStatus{
+		Name:     *repository.Name,
+		ID:       *repository.ID,
+		Archived: *repository.Archived,
+	}
+
+	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
+		repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
+		repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
+		repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
+	}
+
+	slog.Info("starting migration", "name", *repository.Name)
+	err := ProcessRepoMigration(repository, om.source, om.target, om.sourceToken, om.targetToken, om.maxRetries)
+	slog.Info("finished migrating", "name", *repository.Name)
+	if err != nil {
+		slog.Error("error migrating repository: ", err)
+		return err
+	}
+
+	return nil
+}
+
+func (om OrgMigration) Migrate() (MigrationResult, error) {
+	if err := om.prepareMigration(); err != nil {
+		return MigrationResult{}, err
+	}
 
 	slog.Info("fetching repositories from source organization")
 	sourceRepositories, err := github.GetRepositories(om.source, om.sourceToken)
@@ -89,40 +122,21 @@ func (om OrgMigration) Migrate() (MigrationResult, error) {
 		if _, ok := m[*item.Name]; !ok {
 			sourceRepositoriesToMigrate = append(sourceRepositoriesToMigrate, item)
 		} else {
-			log.Println("[🤝] Repository " + *item.Name + " already exists at target organization")
+			slog.Info("repository " + *item.Name + " already exists at target organization")
 		}
 	}
 
 	slog.Info(strconv.Itoa(len(sourceRepositoriesToMigrate)) + " repositories to migrate")
 
-	jobs := make(chan github.Repository, len(sourceRepositoriesToMigrate))
-	results := make(chan workerError, len(sourceRepositoriesToMigrate))
+	jobs := make(chan interface{}, len(sourceRepositoriesToMigrate))
+	results := make(chan worker.Error, len(sourceRepositoriesToMigrate))
 
-	for w := 1; w <= om.parallelMigrations; w++ {
-		go func(id int, jobs <-chan github.Repository, results chan<- workerError) {
-			for repository := range jobs {
-				slog.Debug("worker started", "job", strconv.Itoa(id), "repository", *repository.Name)
+	ctx := context.Background()
 
-				var repoSummary = repo{
-					Name:     *repository.Name,
-					ID:       *repository.ID,
-					Archived: *repository.Archived,
-				}
+	w, _ := worker.New(om.Process, jobs, results)
 
-				if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
-					repoSummary.CodeScanning = *repository.SecurityAndAnalysis.AdvancedSecurity.Status
-					repoSummary.SecretScanning = *repository.SecurityAndAnalysis.SecretScanning.Status
-					repoSummary.PushProtection = *repository.SecurityAndAnalysis.SecretScanningPushProtection.Status
-				}
-
-				err := ProcessRepoMigration(repository, om.source, om.target, om.sourceToken, om.targetToken, om.maxRetries)
-				results <- workerError{err: err, repo: repository}
-
-				if err != nil {
-					slog.Error("error migrating repository: ", err)
-				}
-			}
-		}(w, jobs, results)
+	for i := 0; i < om.parallelMigrations; i++ {
+		go w.Start(ctx)
 	}
 
 	for _, repository := range sourceRepositoriesToMigrate {
@@ -130,19 +144,21 @@ func (om OrgMigration) Migrate() (MigrationResult, error) {
 	}
 	close(jobs)
 
-	var failed []repo
-	var migrated []repo
+	var failed []repoStatus
+	var migrated []repoStatus
 	for a := 1; a <= len(sourceRepositoriesToMigrate); a++ {
 		workerResult := <-results
-		if workerResult.err != nil {
-			failed = append(failed, repo{
-				Name: *workerResult.repo.Name,
-				ID:   *workerResult.repo.ID,
+		slog.Debug("result received")
+		entity := workerResult.Entity.(github.Repository)
+		if workerResult.Err != nil {
+			failed = append(failed, repoStatus{
+				Name: *entity.Name,
+				ID:   *entity.ID,
 			})
 		} else {
-			migrated = append(migrated, repo{
-				Name: *workerResult.repo.Name,
-				ID:   *workerResult.repo.ID,
+			migrated = append(migrated, repoStatus{
+				Name: *entity.Name,
+				ID:   *entity.ID,
 			})
 		}
 	}
