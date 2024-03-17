@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/gateixeira/gei-migration-helper/internal/github"
 	"github.com/gateixeira/gei-migration-helper/internal/migration"
+	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -23,7 +26,14 @@ var reactivateTargetWorkflowsCmd = &cobra.Command{
 
 		if repository == "" {
 			slog.Info("fetching repositories from source organization")
-			repositories, err := github.GetRepositories(sourceOrg, sourceToken)
+			ctx := context.Background()
+			sourceGC, err := github.NewGitHubClient(ctx, logging.NewLoggerFromContext(ctx, false), sourceToken)
+			if err != nil {
+				slog.Info("error initializing source GitHub Client", err)
+				os.Exit(1)
+			}
+
+			repositories, err := sourceGC.GetRepositories(ctx, sourceOrg)
 
 			if err != nil {
 				slog.Error("error fetching repositories from source organization")

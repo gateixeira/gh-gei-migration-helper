@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+
+	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 )
 
 type Processor func(interface{}, context.Context) error
@@ -14,7 +16,6 @@ type Error struct {
 }
 
 type Worker struct {
-	ID        int
 	Processor Processor
 	jobs      chan interface{}
 	results   chan<- Error
@@ -33,12 +34,12 @@ func New(processor Processor, jobs chan interface{}, results chan<- Error) (*Wor
 }
 
 func (w *Worker) Start(ctx context.Context) {
-	slog.Debug("worker started", "id", w.ID)
+	slog.Debug("worker started", "id", ctx.Value(logging.IDKey))
 	for entity := range w.jobs {
 		slog.Debug("job received")
 		err := w.Processor(entity, ctx)
 		w.results <- Error{err, entity}
 		slog.Debug("job finished")
 	}
-	slog.Debug("worker finished", "id", w.ID)
+	slog.Debug("worker finished", "id", ctx.Value(logging.IDKey))
 }

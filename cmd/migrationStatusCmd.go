@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -19,32 +20,45 @@ var migrationStatusCmd = &cobra.Command{
 		sourceToken, _ := cmd.Flags().GetString(sourceTokenFlagName)
 		targetToken, _ := cmd.Flags().GetString(targetTokenFlagName)
 
+		ctx := context.Background()
+		sourceGC, err := github.NewGitHubClient(ctx, slog.Default(), sourceToken)
+		if err != nil {
+			slog.Info("error initializing source GitHub Client", err)
+			os.Exit(1)
+		}
+
+		targetGC, err := github.NewGitHubClient(ctx, slog.Default(), targetToken)
+		if err != nil {
+			slog.Info("error initializing source GitHub Client", err)
+			os.Exit(1)
+		}
+
 		slog.Info(fmt.Sprintf("checking migration status from %s to %s", sourceOrg, targetOrg))
 
 		statusRepoName := "migration-status"
 
-		migrationRepository, _ := github.GetRepository(statusRepoName, targetOrg, targetToken)
+		migrationRepository, _ := targetGC.GetRepository(ctx, statusRepoName, targetOrg)
 
 		if migrationRepository == nil {
 			slog.Info("there is no migration-status repository in the target organization, likely the migration has not been started")
 			os.Exit(0)
 		}
 
-		migrationIssue, _ := github.GetIssue(targetOrg, statusRepoName, 1, targetToken)
+		migrationIssue, _ := targetGC.GetIssue(ctx, targetOrg, statusRepoName, 1)
 
 		if migrationIssue != nil {
 			slog.Info(fmt.Sprintf("migration finished. Check https://github.com/%s/%s/issues/1 for details", targetOrg, statusRepoName))
 			os.Exit(0)
 		}
 
-		sourceRepositories, err := github.GetRepositories(sourceOrg, sourceToken)
+		sourceRepositories, err := sourceGC.GetRepositories(ctx, sourceOrg)
 
 		if err != nil {
 			slog.Error("error fetching repositories from source organization")
 			os.Exit(1)
 		}
 
-		destinationRepositories, err := github.GetRepositories(targetOrg, targetToken)
+		destinationRepositories, err := targetGC.GetRepositories(ctx, targetOrg)
 
 		if err != nil {
 			slog.Error("error fetching repositories from target organization")

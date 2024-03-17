@@ -1,11 +1,11 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/gateixeira/gei-migration-helper/internal/github"
 	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
@@ -30,14 +30,12 @@ var migrateRepoCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("migrating repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
-
+		migration, err := migration.NewRepoMigration(context.Background(), repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 		if err != nil {
-			slog.Info("error getting source repository: " + repository)
+			slog.Error("error migrating repository: " + repository)
 			os.Exit(1)
 		}
 
-		migration := migration.NewRepoMigration(*repo.Name, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 		err = migration.Migrate()
 
 		if err != nil {

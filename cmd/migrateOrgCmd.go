@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -31,7 +32,14 @@ var migrateOrgCmd = &cobra.Command{
 
 		slog.Info("migrating", "source", sourceOrg, "destination", targetOrg)
 
-		migration := migration.NewOrgMigration(sourceOrg, targetOrg, sourceToken, targetToken, maxRetries, workers)
+		migration, err := migration.NewOrgMigration(
+			context.Background(), sourceOrg, targetOrg, sourceToken, targetToken, maxRetries, workers)
+
+		if err != nil {
+			slog.Error("error creating migration", err)
+			os.Exit(1)
+		}
+
 		migrationResult, err := migration.Migrate()
 
 		if err != nil {

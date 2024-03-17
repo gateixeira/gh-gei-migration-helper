@@ -1,18 +1,23 @@
 package github
 
 import (
-	"errors"
-	"fmt"
 	"log/slog"
-	"math"
 	"os/exec"
-	"time"
 )
 
-func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+type GEI struct {
+	sourceOrg, targetOrg     string
+	sourceToken, targetToken string
+}
+
+func NewGEI(source, target, sourceToken, targetToken string) GEI {
+	return GEI{source, target, sourceToken, targetToken}
+}
+
+func (gei *GEI) MigrateCodeScanning(repository string) error {
 	cmd := exec.Command("gh", "gei", "migrate-code-scanning-alerts", "--source-repo", repository,
-		"--source-org", sourceOrg, "--target-org", targetOrg, "--github-source-pat", sourceToken,
-		"--github-target-pat", targetToken)
+		"--source-org", gei.sourceOrg, "--target-org", gei.targetOrg, "--github-source-pat", gei.sourceToken,
+		"--github-target-pat", gei.targetToken)
 
 	err := cmd.Run()
 
@@ -24,8 +29,12 @@ func MigrateCodeScanning(repository string, sourceOrg string, targetOrg string, 
 	return nil
 }
 
-func MigrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
-	cmd := exec.Command("gh", "gei", "migrate-secret-alerts", "--source-repo", repository, "--source-org", sourceOrg, "--target-org", targetOrg, "--github-source-pat", sourceToken, "--github-target-pat", targetToken)
+func (gei *GEI) MigrateSecretScanning(repository string) error {
+	cmd := exec.Command(
+		"gh", "gei", "migrate-secret-alerts", "--source-repo",
+		repository, "--source-org", gei.sourceOrg, "--target-org",
+		gei.targetOrg, "--github-source-pat", gei.sourceToken,
+		"--github-target-pat", gei.targetToken)
 
 	err := cmd.Run()
 
@@ -37,10 +46,10 @@ func MigrateSecretScanning(repository string, sourceOrg string, targetOrg string
 	return nil
 }
 
-func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+func (gei *GEI) MigrateRepo(repository string) error {
 	cmd := exec.Command("gh", "gei", "migrate-repo", "--source-repo",
-		repository, "--github-source-org", sourceOrg, "--github-target-org", targetOrg,
-		"--github-source-pat", sourceToken, "--github-target-pat", targetToken)
+		repository, "--github-source-org", gei.sourceOrg, "--github-target-org", gei.targetOrg,
+		"--github-source-pat", gei.sourceToken, "--github-target-pat", gei.targetToken)
 
 	err := cmd.Run()
 
@@ -49,28 +58,5 @@ func MigrateRepo(repository string, sourceOrg string, targetOrg string, sourceTo
 		return err
 	}
 
-	//call exponentialBackoff
-	err = exponentialBackoff(func() (Repository, error) {
-		return GetRepository(repository, targetOrg, targetToken)
-	})
-
-	if err != nil {
-		slog.Error("failed to migrate repository: ", err)
-		return err
-	}
-
 	return nil
-}
-
-func exponentialBackoff(fn func() (Repository, error)) error {
-	for i := 0; i < 10; i++ {
-		_, err := fn()
-		if err == nil {
-			return nil
-		} else {
-			slog.Debug(fmt.Sprint("retrying in", math.Pow(2, float64(i)), "seconds"))
-		}
-		time.Sleep(time.Duration(math.Pow(2, float64(i))) * time.Second)
-	}
-	return errors.New("exceeded maximum number of attempts")
 }

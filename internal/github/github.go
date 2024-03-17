@@ -31,12 +31,11 @@ type BranchProtectionRule struct {
 	}
 }
 
-var (
-	ctx         context.Context
-	clientV3    *github.Client
-	clientV4    *githubv4.Client
-	accessToken string
-)
+type GitHubClient struct {
+	clientV3 *github.Client
+	clientV4 *githubv4.Client
+	logger   *slog.Logger
+}
 
 var (
 	ErrBranchProtectionDeletion = errors.New("error deleting branch protection rules")
@@ -44,31 +43,24 @@ var (
 	ErrIssueNotFound            = errors.New("issue not found")
 )
 
-func checkClients(token string) error {
-	if clientV3 == nil || clientV4 == nil || token != accessToken {
-		accessToken = token
-		ctx = context.Background()
+func NewGitHubClient(ctx context.Context, logger *slog.Logger, token string) (*GitHubClient, error) {
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: token},
+	)
+	tc := oauth2.NewClient(ctx, ts)
+	rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(tc.Transport)
 
-		ts := oauth2.StaticTokenSource(
-			&oauth2.Token{AccessToken: token},
-		)
-		tc := oauth2.NewClient(ctx, ts)
-		rateLimiter, err := github_ratelimit.NewRateLimitWaiterClient(tc.Transport)
-
-		if err != nil {
-			return err
-		}
-
-		clientV3 = github.NewClient(rateLimiter)
-		clientV4 = githubv4.NewClient(rateLimiter)
+	if err != nil {
+		return nil, err
 	}
 
-	return nil
+	return &GitHubClient{
+		clientV3: github.NewClient(rateLimiter),
+		clientV4: githubv4.NewClient(rateLimiter),
+		logger:   logger}, nil
 }
 
-func DeleteBranchProtections(organization string, repository string, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) DeleteBranchProtections(ctx context.Context, organization string, repository string) error {
 	var query struct {
 		Repository struct {
 			BranchProtectionRules BranchProtectionRule `graphql:"branchProtectionRules(first: 100, after: $cursor)"`
@@ -83,7 +75,7 @@ func DeleteBranchProtections(organization string, repository string, token strin
 
 	results := make([]string, 0)
 	for {
-		err := clientV4.Query(ctx, &query, variables)
+		err := gc.clientV4.Query(ctx, &query, variables)
 		if err != nil {
 			return err
 		}
@@ -110,7 +102,7 @@ func DeleteBranchProtections(organization string, repository string, token strin
 		}
 
 		ctx := context.WithValue(context.Background(), ctx, branchProtection)
-		err := clientV4.Mutate(ctx, &mutate, input, nil)
+		err := gc.clientV4.Mutate(ctx, &mutate, input, nil)
 
 		if err != nil {
 			return ErrBranchProtectionDeletion
@@ -120,9 +112,7 @@ func DeleteBranchProtections(organization string, repository string, token strin
 	return nil
 }
 
-func ChangeGHASOrgSettings(organization string, activate bool, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) ChangeGHASOrgSettings(ctx context.Context, organization string, activate bool) error {
 	//create new organization object
 	newOrgSettings := github.Organization{
 		AdvancedSecurityEnabledForNewRepos:             &activate,
@@ -131,14 +121,12 @@ func ChangeGHASOrgSettings(organization string, activate bool, token string) err
 	}
 
 	// Update the organization
-	_, _, err := clientV3.Organizations.Edit(ctx, organization, &newOrgSettings)
+	_, _, err := gc.clientV3.Organizations.Edit(ctx, organization, &newOrgSettings)
 
 	return err
 }
 
-func ChangeGhasRepoSettings(organization string, repository Repository, ghas string, secretScanning string, pushProtection string, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) ChangeGhasRepoSettings(ctx context.Context, organization string, repository Repository, ghas string, secretScanning string, pushProtection string) error {
 	var payload *github.SecurityAndAnalysis
 	//GHAS is always enabled for public repositories and PATCH fails when trying to set to disabled
 	if *repository.Visibility == "public" {
@@ -170,7 +158,7 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 	}
 
 	// Update the repository
-	_, response, err := clientV3.Repositories.Edit(ctx, organization, *repository.Name, &newRepoSettings)
+	_, response, err := gc.clientV3.Repositories.Edit(ctx, organization, *repository.Name, &newRepoSettings)
 
 	slog.Debug("waiting 10 seconds for changes to apply...")
 	time.Sleep(10 * time.Second)
@@ -185,10 +173,8 @@ func ChangeGhasRepoSettings(organization string, repository Repository, ghas str
 	return err
 }
 
-func GetRepository(repoName string, org string, token string) (Repository, error) {
-	checkClients(token)
-
-	repo, _, err := clientV3.Repositories.Get(ctx, org, repoName)
+func (gc *GitHubClient) GetRepository(ctx context.Context, repoName string, org string) (Repository, error) {
+	repo, _, err := gc.clientV3.Repositories.Get(ctx, org, repoName)
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 404 {
@@ -202,14 +188,12 @@ func GetRepository(repoName string, org string, token string) (Repository, error
 	return repo, nil
 }
 
-func GetRepositories(org string, token string) ([]Repository, error) {
-	checkClients(token)
-
+func (gc *GitHubClient) GetRepositories(ctx context.Context, org string) ([]Repository, error) {
 	// list all repositories for the organization
 	opt := &github.RepositoryListByOrgOptions{Type: "all", ListOptions: github.ListOptions{PerPage: 10}}
 	var allRepos []*github.Repository
 	for {
-		repos, response, err := clientV3.Repositories.ListByOrg(ctx, org, opt)
+		repos, response, err := gc.clientV3.Repositories.ListByOrg(ctx, org, opt)
 
 		if err != nil {
 			return nil, err
@@ -229,16 +213,14 @@ func GetRepositories(org string, token string) ([]Repository, error) {
 	return allReposStruct, nil
 }
 
-func ChangeRepositoryVisibility(organization string, repository string, visibility string, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) ChangeRepositoryVisibility(ctx context.Context, organization string, repository string, visibility string) error {
 	//create new repository object
 	newRepoSettings := github.Repository{
 		Visibility: &visibility,
 	}
 
 	// Update the repository
-	_, _, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
+	_, _, err := gc.clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
 
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
@@ -252,14 +234,13 @@ func ChangeRepositoryVisibility(organization string, repository string, visibili
 	return err
 }
 
-func GetAllActiveWorkflowsForRepository(organization string, repository string, token string) ([]Workflow, error) {
-	checkClients(token)
-
+func (gc *GitHubClient) GetAllActiveWorkflowsForRepository(
+	ctx context.Context, organization string, repository string) ([]Workflow, error) {
 	// list all workflows for the repository
 	opt := &github.ListOptions{PerPage: 10}
 	var allWorkflows []*github.Workflow
 	for {
-		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
+		workflows, response, err := gc.clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
 
 		if err != nil {
 			return nil, err
@@ -281,14 +262,12 @@ func GetAllActiveWorkflowsForRepository(organization string, repository string, 
 	return activeWorkflowsStruct, nil
 }
 
-func GetAllWorkflowsForRepository(organization string, repository string, token string) ([]Workflow, error) {
-	checkClients(token)
-
+func (gc *GitHubClient) GetAllWorkflowsForRepository(ctx context.Context, organization string, repository string) ([]Workflow, error) {
 	// list all workflows for the repository
 	opt := &github.ListOptions{PerPage: 10}
 	var allWorkflows []Workflow
 	for {
-		workflows, response, err := clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
+		workflows, response, err := gc.clientV3.Actions.ListWorkflows(ctx, organization, repository, opt)
 
 		if err != nil {
 			return nil, err
@@ -308,12 +287,11 @@ func GetAllWorkflowsForRepository(organization string, repository string, token 
 	return allWorkflows, nil
 }
 
-func DisableWorkflowsForRepository(organization string, repository string, workflows []Workflow, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) DisableWorkflowsForRepository(
+	ctx context.Context, organization string, repository string, workflows []Workflow) error {
 	// disable all workflows
 	for _, workflow := range workflows {
-		_, err := clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
+		_, err := gc.clientV3.Actions.DisableWorkflowByID(ctx, organization, repository, *workflow.ID)
 
 		if _, ok := err.(*github.ErrorResponse); ok {
 			slog.Debug(fmt.Sprint("failed to disable workflow: ", workflow.Name, " - will not stop migration"))
@@ -324,12 +302,11 @@ func DisableWorkflowsForRepository(organization string, repository string, workf
 	return nil
 }
 
-func EnableWorkflowsForRepository(organization string, repository string, workflows []Workflow, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) EnableWorkflowsForRepository(
+	ctx context.Context, organization string, repository string, workflows []Workflow) error {
 	// enable all workflows
 	for _, workflow := range workflows {
-		_, err := clientV3.Actions.EnableWorkflowByID(ctx, organization, repository, *workflow.ID)
+		_, err := gc.clientV3.Actions.EnableWorkflowByID(ctx, organization, repository, *workflow.ID)
 
 		if err, ok := err.(*github.ErrorResponse); ok {
 			if err.Response.StatusCode == 422 {
@@ -343,10 +320,10 @@ func EnableWorkflowsForRepository(organization string, repository string, workfl
 	return nil
 }
 
-func GetCodeScanningAnalysis(organization string, repository string, defaultBranch string, token string) ([]ScanningAnalysis, error) {
-	checkClients(token)
-
-	analysis, _, err := clientV3.CodeScanning.ListAnalysesForRepo(ctx, organization, repository, &github.AnalysesListOptions{Ref: &defaultBranch})
+func (gc *GitHubClient) GetCodeScanningAnalysis(
+	ctx context.Context, organization string, repository string, defaultBranch string) ([]ScanningAnalysis, error) {
+	analysis, _, err := gc.clientV3.CodeScanning.ListAnalysesForRepo(
+		ctx, organization, repository, &github.AnalysesListOptions{Ref: &defaultBranch})
 
 	if err != nil {
 		//test if error code is 404
@@ -371,24 +348,21 @@ func GetCodeScanningAnalysis(organization string, repository string, defaultBran
 	return convertedAnalysis, nil
 }
 
-func ArchiveRepository(organization string, repository string, token string) error {
-	checkClients(token)
-
-	return ChangeArchiveRepository(organization, repository, true, token)
+func (gc *GitHubClient) ArchiveRepository(ctx context.Context, organization string, repository string) error {
+	return gc.ChangeArchiveRepository(ctx, organization, repository, true)
 }
 
-func UnarchiveRepository(organization string, repository string, token string) error {
-	checkClients(token)
-
-	return ChangeArchiveRepository(organization, repository, false, token)
+func (gc *GitHubClient) UnarchiveRepository(ctx context.Context, organization string, repository string) error {
+	return gc.ChangeArchiveRepository(ctx, organization, repository, false)
 }
 
-func ChangeArchiveRepository(organization string, repository string, archive bool, token string) error {
+func (gc *GitHubClient) ChangeArchiveRepository(
+	ctx context.Context, organization string, repository string, archive bool) error {
 	newRepoSettings := github.Repository{
 		Archived: &archive,
 	}
 
-	_, _, err := clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
+	_, _, err := gc.clientV3.Repositories.Edit(ctx, organization, repository, &newRepoSettings)
 
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
@@ -402,14 +376,12 @@ func ChangeArchiveRepository(organization string, repository string, archive boo
 	return err
 }
 
-func CreateRepository(organization string, repository string, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) CreateRepository(ctx context.Context, organization string, repository string) error {
 	newRepo := &github.Repository{
 		Name: &repository,
 	}
 
-	_, _, err := clientV3.Repositories.Create(ctx, organization, newRepo)
+	_, _, err := gc.clientV3.Repositories.Create(ctx, organization, newRepo)
 
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
@@ -423,23 +395,19 @@ func CreateRepository(organization string, repository string, token string) erro
 	return err
 }
 
-func CreateIssue(organization string, repository string, title string, body string, token string) error {
-	checkClients(token)
-
+func (gc *GitHubClient) CreateIssue(ctx context.Context, organization string, repository string, title string, body string) error {
 	newIssue := &github.IssueRequest{
 		Title: &title,
 		Body:  &body,
 	}
 
-	_, _, err := clientV3.Issues.Create(ctx, organization, repository, newIssue)
+	_, _, err := gc.clientV3.Issues.Create(ctx, organization, repository, newIssue)
 
 	return err
 }
 
-func GetIssue(organization string, repository string, issueNumber int, token string) (Issue, error) {
-	checkClients(token)
-
-	issue, _, err := clientV3.Issues.Get(ctx, organization, repository, issueNumber)
+func (gc *GitHubClient) GetIssue(ctx context.Context, organization string, repository string, issueNumber int) (Issue, error) {
+	issue, _, err := gc.clientV3.Issues.Get(ctx, organization, repository, issueNumber)
 
 	if err != nil {
 		if err, ok := err.(*github.ErrorResponse); ok {
