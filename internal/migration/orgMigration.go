@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gateixeira/gei-migration-helper/internal/github"
+	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 	"github.com/gateixeira/gei-migration-helper/pkg/worker"
 )
 
@@ -83,7 +84,8 @@ func (om OrgMigration) Process(repo interface{}, ctx context.Context) error {
 	}
 
 	slog.Info("starting migration", "name", *repository.Name)
-	err := ProcessRepoMigration(repository, om.source, om.target, om.sourceToken, om.targetToken, om.maxRetries)
+	logger := logging.NewLoggerFromContext(ctx, false)
+	err := ProcessRepoMigration(logger, repository, om.source, om.target, om.sourceToken, om.targetToken, om.maxRetries)
 	slog.Info("finished migrating", "name", *repository.Name)
 	if err != nil {
 		slog.Error("error migrating repository: ", err)
@@ -135,8 +137,8 @@ func (om OrgMigration) Migrate() (MigrationResult, error) {
 
 	w, _ := worker.New(om.Process, jobs, results)
 
-	for i := 0; i < om.parallelMigrations; i++ {
-		go w.Start(ctx)
+	for i := 1; i <= om.parallelMigrations; i++ {
+		go w.Start(context.WithValue(ctx, logging.IDKey, i))
 	}
 
 	for _, repository := range sourceRepositoriesToMigrate {

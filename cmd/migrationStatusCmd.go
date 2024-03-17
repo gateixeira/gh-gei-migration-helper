@@ -67,7 +67,7 @@ var migrationStatusCmd = &cobra.Command{
 		}
 
 		slog.Info("=========================================================")
-		slog.Info("a migration is ongoing from %s to %s (or finished in error)", sourceOrg, targetOrg)
+		slog.Info("a migration is ongoing (or finished in error)", "from", sourceOrg, "to", targetOrg)
 		slog.Info("=========================================================")
 		slog.Info(fmt.Sprintf("%d/%d repositories are migrated", len(intersection), len(sourceRepositories)))
 		slog.Info("=========================================================")

@@ -50,7 +50,7 @@ var migrateRepoCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		err = migration.ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+		err = migration.ProcessRepoMigration(slog.Default(), repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 
 		if err != nil {
 			slog.Error("error migrating repository: " + repository)

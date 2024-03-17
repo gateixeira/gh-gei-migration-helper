@@ -4,10 +4,11 @@ Copyright © 2023 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
 	_ "embed"
-	"log/slog"
 	"os"
 
+	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -28,18 +29,8 @@ var banner []byte
 var enableDebug bool
 
 func initLogger(cmd *cobra.Command, args []string) {
-	lvl := new(slog.LevelVar)
-
-	if enableDebug {
-		lvl.Set(slog.LevelDebug)
-	} else {
-		lvl.Set(slog.LevelInfo)
-	}
-
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: lvl,
-	}))
-	slog.SetDefault(logger)
+	ctx := context.Background()
+	logging.NewLoggerFromContext(ctx, enableDebug)
 }
 
 // rootCmd represents the base command when called without any subcommands
