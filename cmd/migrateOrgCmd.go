@@ -1,6 +1,3 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (
@@ -14,7 +11,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// migrateOrgCmd represents the migrateOrg command
 var migrateOrgCmd = &cobra.Command{
 	Use:   "migrate-organization",
 	Short: "Migrate all repositories from one organization to another",
@@ -22,18 +18,7 @@ var migrateOrgCmd = &cobra.Command{
 
 	The target organization has to exist at destination.
 
-	This script will not migrate the .github repository.
-
-	Migration steps:
-
-	- 1. Deactivate GHAS settings at target organization
-	- 2. Fetch all repositories from source organization
-	- 3. For repositories that are not public, deactivate GHAS settings at source (public repos have this enabled by default)
-	- 4. Migrate repository
-	- 5. Delete branch protections at target
-	- 6. If repository is not private at source, change visibility to internal at target
-	- 7. Activate GHAS settings at target`,
-
+	This script will not migrate the .github repository.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		initial := time.Now()
 

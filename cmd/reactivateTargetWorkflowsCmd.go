@@ -1,6 +1,3 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (
@@ -12,7 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// migrateRepoCmd represents the migrateRepo command
 var reactivateTargetWorkflowsCmd = &cobra.Command{
 	Use:   "reactivate-target-workflows",
 	Short: "Reactivate workflows for a migrated repository based on source",

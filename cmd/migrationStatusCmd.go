@@ -1,6 +1,3 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (

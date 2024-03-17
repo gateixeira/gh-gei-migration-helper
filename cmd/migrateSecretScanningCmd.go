@@ -1,6 +1,3 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (
@@ -13,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// migrateRepoCmd represents the migrateRepo command
 var migrateSecretScanningCmd = &cobra.Command{
 	Use:   "migrate-secret-scanning",
 	Short: "Migrate secret scanning remediations for a repository",
