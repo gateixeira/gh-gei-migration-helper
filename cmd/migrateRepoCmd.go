@@ -1,14 +1,12 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
 
@@ -16,22 +14,12 @@ const (
 	repositoryFlagName = "repo"
 )
 
-// migrateRepoCmd represents the migrateRepo command
 var migrateRepoCmd = &cobra.Command{
 	Use:   "migrate-repository",
 	Short: "Migrate a repository",
 	Long: `This script migrates a repositories from one organization to another.
 
-	The target organization has to exist at destination.
-
-	Migration steps:
-
-	- 1. Deactivate GHAS settings at target organization
-	- 2. Deactivate GHAS settings at source repository
-	- 3. Migrate repository
-	- 4. Delete branch protections at target
-	- 5. change repository visibility to internal at target
-	- 6. Activate GHAS settings at target`,
+	The target organization has to exist at destination.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		sourceOrg, _ := cmd.Flags().GetString(sourceOrgFlagName)
 		targetOrg, _ := cmd.Flags().GetString(targetOrgFlagName)
@@ -42,14 +30,14 @@ var migrateRepoCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("migrating repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		repo, err := github.GetRepository(repository, sourceOrg, sourceToken)
-
+		ctx := context.Background()
+		migration, err := migration.NewRepoMigration(ctx, repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 		if err != nil {
-			slog.Info("error getting source repository: " + repository)
+			slog.Error("error migrating repository: " + repository)
 			os.Exit(1)
 		}
 
-		err = ProcessRepoMigration(repo, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+		err = migration.Migrate(ctx)
 
 		if err != nil {
 			slog.Error("error migrating repository: " + repository)

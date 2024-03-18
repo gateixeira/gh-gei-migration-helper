@@ -1,17 +1,15 @@
-/*
-Package cmd provides a command-line interface for changing GHAS settings for a given organization.
-*/
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"os"
 
-	"github.com/gateixeira/gei-migration-helper/cmd/github"
+	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
 
-// migrateRepoCmd represents the migrateRepo command
 var reactivateTargetWorkflowsCmd = &cobra.Command{
 	Use:   "reactivate-target-workflows",
 	Short: "Reactivate workflows for a migrated repository based on source",
@@ -24,32 +22,20 @@ var reactivateTargetWorkflowsCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("reactivating target workflows for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		if repository == "" {
-			slog.Info("fetching repositories from source organization")
-			repositories, err := github.GetRepositories(sourceOrg, sourceToken)
-
-			if err != nil {
-				slog.Error("error fetching repositories from source organization")
-				return
-			}
-
-			slog.Info("done")
-
-			for _, repository := range repositories {
-				if *repository.Name == ".github" {
-					continue
-				}
-
-				err := ReactivateTargetWorkflows(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
-
-				if err != nil {
-					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
-					continue
-				}
-			}
-		} else {
-			ReactivateTargetWorkflows(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		ctx := context.Background()
+		migrationData, err := migration.NewMigration(ctx, sourceOrg, targetOrg, sourceToken, targetToken)
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
 		}
+
+		err = migrationData.ReactivateTargetWorkflows(ctx, repository)
+
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
+		}
+
 	},
 }
 
