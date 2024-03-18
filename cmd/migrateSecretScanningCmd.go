@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gateixeira/gei-migration-helper/internal/github"
 	"github.com/gateixeira/gei-migration-helper/internal/migration"
 	"github.com/spf13/cobra"
 )
@@ -23,43 +22,20 @@ var migrateSecretScanningCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("migrating secret scanning for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		if repository == "" {
-			slog.Info("fetching repositories from source organization")
-			ctx := context.Background()
-			sourceGC, err := github.NewGitHubClient(ctx, slog.Default(), sourceToken)
-			if err != nil {
-				slog.Info("error initializing source GitHub Client", err)
-				os.Exit(1)
-			}
-
-			repositories, err := sourceGC.GetRepositories(ctx, sourceOrg)
-
-			if err != nil {
-				slog.Error("error fetching repositories from source organization")
-				os.Exit(1)
-			}
-
-			slog.Info("done")
-
-			for _, repository := range repositories {
-				if *repository.Name == ".github" {
-					continue
-				}
-				err := migration.CheckAndMigrateSecretScanning(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
-
-				if err != nil {
-					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
-					continue
-				}
-			}
-		} else {
-			err := migration.CheckAndMigrateSecretScanning(repository, sourceOrg, targetOrg, sourceToken, targetToken)
-
-			if err != nil {
-				slog.Error("error migrating secret scanning for repository: " + repository)
-				os.Exit(1)
-			}
+		ctx := context.Background()
+		migration, err := migration.NewSecretScanningMigration(ctx, sourceOrg, targetOrg, sourceToken, targetToken)
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
 		}
+
+		err = migration.Migrate(ctx, repository)
+
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
+		}
+
 	},
 }
 

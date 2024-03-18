@@ -10,8 +10,7 @@ import (
 
 type RepoMigration struct {
 	name string
-	orgs orgs
-	gei  github.GEI
+	md   MigrationData
 }
 
 func NewRepoMigration(ctx context.Context, name, sourceOrg, targetOrg, sourceToken, targetToken string, retries int) (RepoMigration, error) {
@@ -28,21 +27,20 @@ func NewRepoMigration(ctx context.Context, name, sourceOrg, targetOrg, sourceTok
 		return RepoMigration{}, err
 	}
 
-	return RepoMigration{name, orgs{sourceOrg, targetOrg, sourceGC, targetGC}, github.NewGEI(sourceOrg, targetOrg, sourceToken, targetToken)}, nil
+	return RepoMigration{name, MigrationData{orgs{sourceOrg, targetOrg, sourceGC, targetGC}, github.NewGEI(sourceOrg, targetOrg, sourceToken, targetToken)}}, nil
 }
 
-func (rm RepoMigration) Migrate() error {
-	ctx := context.Background()
+func (rm RepoMigration) Migrate(ctx context.Context) error {
 	logger := logging.NewLoggerFromContext(ctx, false)
 
-	repo, err := rm.orgs.sourceGC.GetRepository(ctx, rm.name, rm.orgs.source)
+	repo, err := rm.md.orgs.sourceGC.GetRepository(ctx, rm.name, rm.md.orgs.source)
 
 	if err != nil {
 		slog.Info("error getting repository: "+*repo.Name, err)
 		return err
 	}
 
-	err = processRepoMigration(ctx, logger, repo, rm.orgs, rm.gei)
+	err = rm.md.processRepoMigration(ctx, logger, repo)
 
 	if err != nil {
 		slog.Error("error migrating repository: "+*repo.Name, err)

@@ -6,9 +6,7 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/gateixeira/gei-migration-helper/internal/github"
 	"github.com/gateixeira/gei-migration-helper/internal/migration"
-	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 	"github.com/spf13/cobra"
 )
 
@@ -24,39 +22,20 @@ var reactivateTargetWorkflowsCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("reactivating target workflows for repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		if repository == "" {
-			slog.Info("fetching repositories from source organization")
-			ctx := context.Background()
-			sourceGC, err := github.NewGitHubClient(ctx, logging.NewLoggerFromContext(ctx, false), sourceToken)
-			if err != nil {
-				slog.Info("error initializing source GitHub Client", err)
-				os.Exit(1)
-			}
-
-			repositories, err := sourceGC.GetRepositories(ctx, sourceOrg)
-
-			if err != nil {
-				slog.Error("error fetching repositories from source organization")
-				return
-			}
-
-			slog.Info("done")
-
-			for _, repository := range repositories {
-				if *repository.Name == ".github" {
-					continue
-				}
-
-				err := migration.ReactivateTargetWorkflows(*repository.Name, sourceOrg, targetOrg, sourceToken, targetToken)
-
-				if err != nil {
-					slog.Error("error migrating secret scanning for repository: " + *repository.Name)
-					continue
-				}
-			}
-		} else {
-			migration.ReactivateTargetWorkflows(repository, sourceOrg, targetOrg, sourceToken, targetToken)
+		ctx := context.Background()
+		migrationData, err := migration.NewMigration(ctx, sourceOrg, targetOrg, sourceToken, targetToken)
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
 		}
+
+		err = migrationData.ReactivateTargetWorkflows(ctx, repository)
+
+		if err != nil {
+			slog.Error("error migrating repository: " + repository)
+			os.Exit(1)
+		}
+
 	},
 }
 

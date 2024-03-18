@@ -32,15 +32,16 @@ var migrateOrgCmd = &cobra.Command{
 
 		slog.Info("migrating", "source", sourceOrg, "destination", targetOrg)
 
+		ctx := context.Background()
 		migration, err := migration.NewOrgMigration(
-			context.Background(), sourceOrg, targetOrg, sourceToken, targetToken, maxRetries, workers)
+			ctx, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries, workers)
 
 		if err != nil {
 			slog.Error("error creating migration", err)
 			os.Exit(1)
 		}
 
-		migrationResult, err := migration.Migrate()
+		migrationResult, err := migration.Migrate(ctx)
 
 		if err != nil {
 			slog.Error("error migrating", err)

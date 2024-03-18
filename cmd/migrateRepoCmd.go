@@ -30,13 +30,14 @@ var migrateRepoCmd = &cobra.Command{
 
 		slog.Info(fmt.Sprintf("migrating repository %s from %s to %s", repository, sourceOrg, targetOrg))
 
-		migration, err := migration.NewRepoMigration(context.Background(), repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
+		ctx := context.Background()
+		migration, err := migration.NewRepoMigration(ctx, repository, sourceOrg, targetOrg, sourceToken, targetToken, maxRetries)
 		if err != nil {
 			slog.Error("error migrating repository: " + repository)
 			os.Exit(1)
 		}
 
-		err = migration.Migrate()
+		err = migration.Migrate(ctx)
 
 		if err != nil {
 			slog.Error("error migrating repository: " + repository)

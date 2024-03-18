@@ -15,8 +15,7 @@ import (
 
 type OrgMigration struct {
 	parallelMigrations int
-	orgs               orgs
-	gei                github.GEI
+	md                 MigrationData
 }
 
 const statusRepoName = "migration-status"
@@ -36,13 +35,13 @@ func NewOrgMigration(ctx context.Context, source, target, sourceToken, targetTok
 		return OrgMigration{}, err
 	}
 
-	return OrgMigration{parallelMigrations, orgs{
-		source, target, sourceGC, targetGC}, github.NewGEI(source, target, sourceToken, targetToken)}, nil
+	return OrgMigration{parallelMigrations, MigrationData{orgs{
+		source, target, sourceGC, targetGC}, github.NewGEI(source, target, sourceToken, targetToken)}}, nil
 }
 
 func (om OrgMigration) checkOngoing(ctx context.Context) error {
 	slog.Info("looking for ongoing/past migration")
-	repo, err := om.orgs.targetGC.GetRepository(ctx, statusRepoName, om.orgs.target)
+	repo, err := om.md.orgs.targetGC.GetRepository(ctx, statusRepoName, om.md.orgs.target)
 
 	if err != nil && err.Error() != github.ErrRepositoryNotFound.Error() {
 		slog.Error("error fetching migration status repository", err)
@@ -50,20 +49,20 @@ func (om OrgMigration) checkOngoing(ctx context.Context) error {
 	}
 
 	if err == nil && *repo.Name == statusRepoName {
-		issue, _ := om.orgs.targetGC.GetIssue(ctx, om.orgs.target, statusRepoName, 1)
+		issue, _ := om.md.orgs.targetGC.GetIssue(ctx, om.md.orgs.target, statusRepoName, 1)
 
 		if issue != nil {
-			err := fmt.Errorf("a migration to this organization was already executed. Please check http://github.com/%s/%s/issues/1 for status", om.orgs.target, statusRepoName)
+			err := fmt.Errorf("a migration to this organization was already executed. Please check http://github.com/%s/%s/issues/1 for status", om.md.orgs.target, statusRepoName)
 			slog.Error(err.Error())
 			return err
 		}
 
-		err := fmt.Errorf("a migration to this organization is either ongoing or finished in error (remove http://github.com/%s/%s if you want to retry)", om.orgs.target, statusRepoName)
+		err := fmt.Errorf("a migration to this organization is either ongoing or finished in error (remove http://github.com/%s/%s if you want to retry)", om.md.orgs.target, statusRepoName)
 		return err
 	}
 
 	slog.Info("creating migration status repository")
-	om.orgs.targetGC.CreateRepository(ctx, om.orgs.target, statusRepoName)
+	om.md.orgs.targetGC.CreateRepository(ctx, om.md.orgs.target, statusRepoName)
 
 	return nil
 }
@@ -74,7 +73,7 @@ func (om OrgMigration) prepareMigration(ctx context.Context) error {
 	}
 
 	slog.Info("deactivating GHAS settings at target organization")
-	om.orgs.targetGC.ChangeGHASOrgSettings(ctx, om.orgs.target, false)
+	om.md.orgs.targetGC.ChangeGHASOrgSettings(ctx, om.md.orgs.target, false)
 
 	return nil
 }
@@ -99,7 +98,7 @@ func (om OrgMigration) Process(repo interface{}, ctx context.Context) error {
 
 	slog.Info("starting migration", "name", *repository.Name)
 	logger := logging.NewLoggerFromContext(ctx, false)
-	err := processRepoMigration(ctx, logger, repository, om.orgs, om.gei)
+	err := om.md.processRepoMigration(ctx, logger, repository)
 	slog.Info("finished migrating", "name", *repository.Name)
 	if err != nil {
 		slog.Error("error migrating repository: ", err)
@@ -109,22 +108,20 @@ func (om OrgMigration) Process(repo interface{}, ctx context.Context) error {
 	return nil
 }
 
-func (om OrgMigration) Migrate() (migrationResult, error) {
-	ctx := context.Background()
-
+func (om OrgMigration) Migrate(ctx context.Context) (migrationResult, error) {
 	if err := om.prepareMigration(ctx); err != nil {
 		return migrationResult{}, err
 	}
 
 	slog.Info("fetching repositories from source organization")
-	sourceRepositories, err := om.orgs.sourceGC.GetRepositories(ctx, om.orgs.source)
+	sourceRepositories, err := om.md.orgs.sourceGC.GetRepositories(ctx, om.md.orgs.source)
 
 	if err != nil {
 		slog.Error("error fetching repositories from source organization")
 		return migrationResult{}, err
 	}
 
-	destinationRepositories, err := om.orgs.targetGC.GetRepositories(ctx, om.orgs.target)
+	destinationRepositories, err := om.md.orgs.targetGC.GetRepositories(ctx, om.md.orgs.target)
 
 	if err != nil {
 		slog.Error("error fetching repositories from target organization")
@@ -181,8 +178,8 @@ func (om OrgMigration) Migrate() (migrationResult, error) {
 
 	mr := migrationResult{
 		Timestamp: time.Now().UTC(),
-		SourceOrg: om.orgs.source,
-		TargetOrg: om.orgs.target,
+		SourceOrg: om.md.orgs.source,
+		TargetOrg: om.md.orgs.target,
 		Migrated:  migrated,
 		Failed:    failed,
 	}
@@ -193,7 +190,7 @@ func (om OrgMigration) Migrate() (migrationResult, error) {
 		return migrationResult{}, err
 	}
 
-	err = om.orgs.targetGC.CreateIssue(ctx, om.orgs.target, statusRepoName, "Migration result", string(jsonData))
+	err = om.md.orgs.targetGC.CreateIssue(ctx, om.md.orgs.target, statusRepoName, "Migration result", string(jsonData))
 
 	if err != nil {
 		slog.Error("error creating issue with migration result. Check migration-result.json for details")

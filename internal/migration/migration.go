@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gateixeira/gei-migration-helper/internal/github"
-	"github.com/gateixeira/gei-migration-helper/pkg/logging"
 )
 
 type orgs struct {
@@ -33,13 +32,38 @@ type repoStatus struct {
 	PushProtection string `json:"pushProtection" default:"disabled"`
 }
 
+type MigrationData struct {
+	orgs orgs
+	gei  github.GEI
+}
+
 type Migration interface {
-	Migrate() (migrationResult, error)
+	Migrate(context.Context) (migrationResult, error)
+}
+
+type errWritter struct {
+	err error
 }
 
 var maxRetries = 5
 
-func processRepoMigration(ctx context.Context, logger *slog.Logger, repository github.Repository, orgs orgs, gei github.GEI) error {
+func NewMigration(ctx context.Context, sourceOrg, targetOrg, sourceToken, targetToken string) (MigrationData, error) {
+	sourceGC, err := github.NewGitHubClient(ctx, slog.Default(), sourceToken)
+	if err != nil {
+		slog.Info("error initializing source GitHub Client", err)
+		return MigrationData{}, err
+	}
+
+	targetGC, err := github.NewGitHubClient(ctx, slog.Default(), targetToken)
+	if err != nil {
+		slog.Info("error initializing source GitHub Client", err)
+		return MigrationData{}, err
+	}
+
+	return MigrationData{orgs{sourceOrg, targetOrg, sourceGC, targetGC}, github.NewGEI(sourceOrg, targetOrg, sourceToken, targetToken)}, nil
+}
+
+func (md MigrationData) processRepoMigration(ctx context.Context, logger *slog.Logger, repository github.Repository) error {
 	logger.Info("migration", "repository", *repository.Name, slog.String("archived", strconv.FormatBool(*repository.Archived)), slog.String("visibility", *repository.Visibility))
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
@@ -56,24 +80,24 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 	if repository.SecurityAndAnalysis.AdvancedSecurity == nil || *repository.SecurityAndAnalysis.AdvancedSecurity.Status == "disabled" {
 		if *repository.Archived {
 			ew.logAndCallStep(logger, "unarchive source", func() error {
-				return orgs.sourceGC.UnarchiveRepository(ctx, orgs.source, *repository.Name)
+				return md.orgs.sourceGC.UnarchiveRepository(ctx, md.orgs.source, *repository.Name)
 			})
 		}
 		ew.logAndCallStep(logger, "activating code scanning at source to check for previous analyses", func() error {
-			return orgs.sourceGC.ChangeGhasRepoSettings(ctx, orgs.source, repository, "enabled", "disabled", "disabled")
+			return md.orgs.sourceGC.ChangeGhasRepoSettings(ctx, md.orgs.source, repository, "enabled", "disabled", "disabled")
 		})
 	}
 
-	codeScanningAnalysis, _ := orgs.sourceGC.GetCodeScanningAnalysis(ctx, orgs.source, *repository.Name, *repository.DefaultBranch)
+	codeScanningAnalysis, _ := md.orgs.sourceGC.GetCodeScanningAnalysis(ctx, md.orgs.source, *repository.Name, *repository.DefaultBranch)
 
 	if repository.SecurityAndAnalysis.AdvancedSecurity != nil {
 		ew.logAndCallStep(logger, "disabling GHAS settings at source", func() error {
-			return orgs.sourceGC.ChangeGhasRepoSettings(ctx, orgs.source, repository, "disabled", "disabled", "disabled")
+			return md.orgs.sourceGC.ChangeGhasRepoSettings(ctx, md.orgs.source, repository, "disabled", "disabled", "disabled")
 		})
 	}
 
 	var sourceWorkflows []github.Workflow
-	sourceWorkflows, ew.err = orgs.sourceGC.GetAllActiveWorkflowsForRepository(ctx, orgs.source, *repository.Name)
+	sourceWorkflows, ew.err = md.orgs.sourceGC.GetAllActiveWorkflowsForRepository(ctx, md.orgs.source, *repository.Name)
 
 	if ew.err != nil {
 		logger.Error("failed to get workflows")
@@ -82,15 +106,15 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 
 	if len(sourceWorkflows) > 0 {
 		ew.logAndCallStep(logger, "disabling workflows at source", func() error {
-			return orgs.sourceGC.DisableWorkflowsForRepository(ctx, orgs.source, *repository.Name, sourceWorkflows)
+			return md.orgs.sourceGC.DisableWorkflowsForRepository(ctx, md.orgs.source, *repository.Name, sourceWorkflows)
 		})
 	}
 
 	ew.logAndCallStep(logger, "migrating", func() error {
-		return gei.MigrateRepo(*repository.Name)
+		return md.gei.MigrateRepo(*repository.Name)
 	})
 
-	newRepository, err := orgs.targetGC.GetRepository(ctx, *repository.Name, orgs.target)
+	newRepository, err := md.orgs.targetGC.GetRepository(ctx, *repository.Name, md.orgs.target)
 
 	if err != nil {
 		logger.Error("failed to migrate")
@@ -98,7 +122,7 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 	}
 
 	var targetWorkflows []github.Workflow
-	targetWorkflows, ew.err = orgs.targetGC.GetAllActiveWorkflowsForRepository(ctx, orgs.target, *repository.Name)
+	targetWorkflows, ew.err = md.orgs.targetGC.GetAllActiveWorkflowsForRepository(ctx, md.orgs.target, *repository.Name)
 
 	if ew.err != nil {
 		logger.Error("failed to get workflows")
@@ -108,23 +132,23 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 	if len(targetWorkflows) > 0 {
 		//this is unfortunately necessary as the workflows get re-enabled after org migration
 		ew.logAndCallStep(logger, "disabling workflows at target", func() error {
-			return orgs.targetGC.DisableWorkflowsForRepository(ctx, orgs.target, *repository.Name, targetWorkflows)
+			return md.orgs.targetGC.DisableWorkflowsForRepository(ctx, md.orgs.target, *repository.Name, targetWorkflows)
 		})
 	}
 
 	if *newRepository.Archived {
 		ew.logAndCallStep(logger, "unarchive target", func() error {
-			return orgs.targetGC.UnarchiveRepository(ctx, orgs.target, *repository.Name)
+			return md.orgs.targetGC.UnarchiveRepository(ctx, md.orgs.target, *repository.Name)
 		})
 	}
 
 	ew.logAndCallStep(logger, "deleting branch protections at target", func() error {
-		return orgs.targetGC.DeleteBranchProtections(ctx, orgs.target, *repository.Name)
+		return md.orgs.targetGC.DeleteBranchProtections(ctx, md.orgs.target, *repository.Name)
 	})
 
 	if *newRepository.Visibility == "private" {
 		ew.logAndCallStep(logger, "changing visibility to internal at target", func() error {
-			return orgs.targetGC.ChangeRepositoryVisibility(ctx, orgs.target, *repository.Name, "internal")
+			return md.orgs.targetGC.ChangeRepositoryVisibility(ctx, md.orgs.target, *repository.Name, "internal")
 		})
 
 		logger.Debug("waiting 10 seconds for changes to apply...")
@@ -134,7 +158,7 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 	}
 
 	ew.logAndCallStep(logger, "activating GHAS at target", func() error {
-		return orgs.targetGC.ChangeGhasRepoSettings(ctx, orgs.target, newRepository, "enabled", "enabled", "enabled")
+		return md.orgs.targetGC.ChangeGhasRepoSettings(ctx, md.orgs.target, newRepository, "enabled", "enabled", "enabled")
 	})
 
 	if len(codeScanningAnalysis) <= 0 {
@@ -143,14 +167,14 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 		logger.Info(fmt.Sprintf("found %d code scanning analysis at source in default branch (%s) before migration", len(codeScanningAnalysis), *repository.DefaultBranch))
 
 		ew.logAndCallStep(logger, "activating code scanning at source to migrate alerts", func() error {
-			return orgs.sourceGC.ChangeGhasRepoSettings(ctx, orgs.source, repository, "enabled", "disabled", "disabled")
+			return md.orgs.sourceGC.ChangeGhasRepoSettings(ctx, md.orgs.source, repository, "enabled", "disabled", "disabled")
 		})
 
 		ew.logAndCallStep(logger, "migrating code scanning alerts", func() error {
-			return gei.MigrateCodeScanning(*repository.Name)
+			return md.gei.MigrateCodeScanning(*repository.Name)
 		})
 
-		codeScanningAnalysis, ew.err = orgs.targetGC.GetCodeScanningAnalysis(ctx, orgs.target, *repository.Name, *repository.DefaultBranch)
+		codeScanningAnalysis, ew.err = md.orgs.targetGC.GetCodeScanningAnalysis(ctx, md.orgs.target, *repository.Name, *repository.DefaultBranch)
 
 		if ew.err != nil {
 			logger.Error("failed to get code scanning analysis")
@@ -160,22 +184,22 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 		logger.Info(fmt.Sprintf("found %d code scanning analysis at target in default branch (%s) after migration", len(codeScanningAnalysis), *repository.DefaultBranch))
 
 		ew.logAndCallStep(logger, "deactivating code scanning at source", func() error {
-			return orgs.sourceGC.ChangeGhasRepoSettings(ctx, orgs.source, repository, "disabled", "disabled", "disabled")
+			return md.orgs.sourceGC.ChangeGhasRepoSettings(ctx, md.orgs.source, repository, "disabled", "disabled", "disabled")
 		})
 	}
 
 	if *newRepository.Archived {
 		ew.logAndCallStep(logger, "archive target", func() error {
-			return orgs.targetGC.ArchiveRepository(ctx, orgs.target, *repository.Name)
+			return md.orgs.targetGC.ArchiveRepository(ctx, md.orgs.target, *repository.Name)
 		})
 	}
 
-	reEnableOrigin(ctx, logger, repository, orgs.sourceGC, orgs.source, sourceWorkflows)
+	reEnableOrigin(ctx, logger, repository, md.orgs.sourceGC, md.orgs.source, sourceWorkflows)
 
 	//check if repository is not archived
 	if !*repository.Archived {
 		ew.logAndCallStep(logger, "archiving source", func() error {
-			return orgs.sourceGC.ArchiveRepository(ctx, orgs.source, *repository.Name)
+			return md.orgs.sourceGC.ArchiveRepository(ctx, md.orgs.source, *repository.Name)
 		})
 	}
 
@@ -187,33 +211,12 @@ func processRepoMigration(ctx context.Context, logger *slog.Logger, repository g
 	return nil
 }
 
-type errWritter struct {
-	err error
-}
-
-func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
+func (md MigrationData) CheckAndMigrateSecretScanning(ctx context.Context, logger *slog.Logger, repository github.Repository) error {
 	ew := errWritter{}
 
-	ctx := context.Background()
-	logger := logging.NewLoggerFromContext(ctx, false)
-	sourceGC, err := github.NewGitHubClient(ctx, logger, sourceToken)
-	if err != nil {
-		slog.Info("error initializing source GitHub Client", err)
-		return err
-	}
-
-	gei := github.NewGEI(sourceOrg, targetOrg, sourceToken, targetToken)
-
-	var repo github.Repository
-	repo, ew.err = sourceGC.GetRepository(ctx, repository, sourceOrg)
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	if *repo.SecurityAndAnalysis.SecretScanning.Status == "enabled" {
+	if *repository.SecurityAndAnalysis.SecretScanning.Status == "enabled" {
 		ew.logAndCallStep(slog.Default(), "migrating secret scanning alerts", func() error {
-			return gei.MigrateSecretScanning(repository)
+			return md.gei.MigrateSecretScanning(*repository.Name)
 		})
 	} else {
 		slog.Info("skipping because secret scanning is not enabled")
@@ -226,60 +229,68 @@ func CheckAndMigrateSecretScanning(repository string, sourceOrg string, targetOr
 	return nil
 }
 
-func ReactivateTargetWorkflows(repository string, sourceOrg string, targetOrg string, sourceToken string, targetToken string) error {
-	ew := errWritter{}
+func (md MigrationData) ReactivateTargetWorkflows(ctx context.Context, repository string) error {
+	var repositories []github.Repository
+	if repository == "" {
+		slog.Info("fetching repositories from source organization")
 
-	ctx := context.Background()
-	logger := logging.NewLoggerFromContext(ctx, false)
-	sourceGC, err := github.NewGitHubClient(ctx, logger, sourceToken)
-	if err != nil {
-		slog.Info("error initializing source GitHub Client", err)
-		return err
-	}
+		repositories, _ = md.orgs.sourceGC.GetRepositories(ctx, md.orgs.source)
+	} else {
+		repo, err := md.orgs.sourceGC.GetRepository(ctx, repository, md.orgs.source)
 
-	targetGC, err := github.NewGitHubClient(ctx, logger, targetToken)
-	if err != nil {
-		slog.Info("error initializing source GitHub Client", err)
-		return err
-	}
-
-	var sourceWorkflows []github.Workflow
-	sourceWorkflows, ew.err = sourceGC.GetAllActiveWorkflowsForRepository(ctx, sourceOrg, repository)
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	var targetWorkflows []github.Workflow
-	targetWorkflows, ew.err = targetGC.GetAllWorkflowsForRepository(ctx, targetOrg, repository)
-
-	if ew.err != nil {
-		return ew.err
-	}
-
-	if len(sourceWorkflows) > 0 {
-
-		// add name of sourceWorkflows to a hash map
-		sourceWorkflowsMap := make(map[string]bool)
-		for _, workflow := range sourceWorkflows {
-			sourceWorkflowsMap[*workflow.Name] = true
+		if err != nil {
+			slog.Error("error getting repository: "+repository, err)
+			return err
 		}
 
-		// initialize list of workflows to enable with size of sourceWorkflows
-		workflows := make([]github.Workflow, 0, len(sourceWorkflows))
-		for _, workflow := range targetWorkflows {
-			if _, ok := sourceWorkflowsMap[*workflow.Name]; ok {
-				workflows = append(workflows, workflow)
+		repositories = append(repositories, repo)
+	}
+
+	for _, repository := range repositories {
+		if *repository.Name == ".github" {
+			continue
+		}
+
+		ew := errWritter{}
+
+		var sourceWorkflows []github.Workflow
+		sourceWorkflows, ew.err = md.orgs.sourceGC.GetAllActiveWorkflowsForRepository(ctx, md.orgs.source, *repository.Name)
+
+		if ew.err != nil {
+			return ew.err
+		}
+
+		var targetWorkflows []github.Workflow
+		targetWorkflows, ew.err = md.orgs.targetGC.GetAllWorkflowsForRepository(ctx, md.orgs.target, *repository.Name)
+
+		if ew.err != nil {
+			return ew.err
+		}
+
+		if len(sourceWorkflows) > 0 {
+
+			// add name of sourceWorkflows to a hash map
+			sourceWorkflowsMap := make(map[string]bool)
+			for _, workflow := range sourceWorkflows {
+				sourceWorkflowsMap[*workflow.Name] = true
 			}
+
+			// initialize list of workflows to enable with size of sourceWorkflows
+			workflows := make([]github.Workflow, 0, len(sourceWorkflows))
+			for _, workflow := range targetWorkflows {
+				if _, ok := sourceWorkflowsMap[*workflow.Name]; ok {
+					workflows = append(workflows, workflow)
+				}
+			}
+
+			ew.logAndCallStep(slog.Default(), "Enabling workflows at target", func() error {
+				return md.orgs.targetGC.EnableWorkflowsForRepository(ctx, md.orgs.target, *repository.Name, workflows)
+			})
 		}
 
-		ew.logAndCallStep(slog.Default(), "Enabling workflows at target", func() error {
-			return targetGC.EnableWorkflowsForRepository(ctx, targetOrg, repository, workflows)
-		})
-	}
-
-	if ew.err != nil {
-		return ew.err
+		if ew.err != nil {
+			return ew.err
+		}
 	}
 
 	return nil
