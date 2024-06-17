@@ -6,7 +6,7 @@ require (
 	github.com/gofri/go-github-ratelimit v1.1.0
 	github.com/google/go-github/v59 v59.0.0
 	github.com/shurcooL/githubv4 v0.0.0-20230305132112-efb623903184
-	github.com/spf13/cobra v1.8.0
+	github.com/spf13/cobra v1.8.1
 	golang.org/x/oauth2 v0.18.0
 )
 
