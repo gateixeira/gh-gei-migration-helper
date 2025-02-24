@@ -1,13 +1,14 @@
 module github.com/gateixeira/gei-migration-helper
 
 go 1.21
+toolchain go1.23.6
 
 require (
 	github.com/gofri/go-github-ratelimit v1.1.0
 	github.com/google/go-github/v59 v59.0.0
 	github.com/shurcooL/githubv4 v0.0.0-20230305132112-efb623903184
 	github.com/spf13/cobra v1.8.1
-	golang.org/x/oauth2 v0.24.0
+	golang.org/x/oauth2 v0.27.0
 )
 
 require (
